@@ -21,6 +21,9 @@
     "chrome_style": true
   },
   "permissions": [
-    "activeTab"
-  ]
+    "activeTab",
+    "storage"
+  ],
+
+  "web_accessible_resources": ["sidebar/sidebar.js"]
 }
