@@ -10,12 +10,14 @@ Vue.use(Vuex);
 export default new Vuex.Store({
   plugins: [
     VuexWebExtensions({
-      persistentStates: ['foo'],
+      persistentStates: ['jwt', 'pinataKeys'],
       loggerLevel: 'verbose',
     }),
   ],
   state: {
-    foo: 'bar',
+    jwt: null,
+    jwtValid: false,
+    pinataKeys: null,
   },
   getters,
   mutations,

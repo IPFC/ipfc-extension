@@ -1,18 +1,25 @@
 <template>
-  <div>
-    <p @click="resizeInitialWindow">Click to open sidebar</p>
+  <div id="popup-body">
+    <login v-if="!loggedIn" @loginSuccess="setLoggedIn" />
+    <p v-if="loggedIn" @click="resizeInitialWindow">Click to open sidebar</p>
   </div>
 </template>
 
 <script>
+import login from '../components/Login.vue';
 export default {
   name: 'sidebar',
   data() {
     return {
-      sidebar: {},
+      loggedIn: false,
     };
   },
+  components: { login },
   methods: {
+    setLoggedIn() {
+      this.log('  set login to true')
+      this.loggedIn = true;
+    },
     log(message) {
       chrome.extension.getBackgroundPage().console.log(message);
     },
@@ -54,5 +61,6 @@ export default {
 p {
   font-size: 20px;
   color: orange;
+  padding: 10px;
 }
 </style>
