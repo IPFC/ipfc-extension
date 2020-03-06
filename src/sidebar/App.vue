@@ -44,7 +44,6 @@ export default {
         height: '100%',
         position: 'fixed',
         zIndex: 99999999,
-        marginRight: '5px',
       };
       console.log(this.sidebarStyle);
     } else {
