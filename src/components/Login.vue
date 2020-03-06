@@ -1,45 +1,114 @@
 <template>
   <div>
     <div id="login-body">
-      <b-alert :show="dismissCountDown" dismissible fade variant="warning" @dismiss-count-down="countDownChanged">
+      <b-alert
+        :show="dismissCountDown"
+        dismissible
+        fade
+        variant="warning"
+        @dismiss-count-down="countDownChanged"
+      >
         {{ apiErrorMsg }}
       </b-alert>
       <b-form @submit.stop.prevent id="form-signin">
         <label for="feedback-email">Email</label>
-        <b-form-input v-model="input.email" :state="emailValidation" id="feedback-email"></b-form-input>
-        <b-form-invalid-feedback v-if="input.email" :state="emailValidation">{{ emailValidationErrorMsg }}</b-form-invalid-feedback>
+        <b-form-input
+          v-model="input.email"
+          :state="emailValidation"
+          id="feedback-email"
+        ></b-form-input>
+        <b-form-invalid-feedback v-if="input.email" :state="emailValidation">{{
+          emailValidationErrorMsg
+        }}</b-form-invalid-feedback>
         <!-- <b-form-valid-feedback :state="emailValidation">Looks Good.</b-form-valid-feedback> -->
 
         <label for="feedback-password">Password</label>
-        <b-form-input v-model="input.password" :state="passwordValidation" type="password" id="feedback-password"></b-form-input>
-        <b-form-invalid-feedback v-if="input.password" :state="passwordValidation">{{ passwordValidationErrorMsg }}</b-form-invalid-feedback>
+        <b-form-input
+          v-model="input.password"
+          :state="passwordValidation"
+          type="password"
+          id="feedback-password"
+        ></b-form-input>
+        <b-form-invalid-feedback v-if="input.password" :state="passwordValidation">{{
+          passwordValidationErrorMsg
+        }}</b-form-invalid-feedback>
         <!-- <b-form-valid-feedback :state="passwordValidation">Looks Good.</b-form-valid-feedback> -->
 
-        <b-button v-if="signingUp" id="button-get-pinata" type="submit" @click="OpenPinata()" variant="primary">Get Pinata</b-button>
+        <b-button
+          v-if="signingUp"
+          id="button-get-pinata"
+          type="submit"
+          @click="OpenPinata()"
+          variant="primary"
+          >Get Pinata</b-button
+        >
         <br />
 
         <label v-if="signingUp" for="feedback-pinata-api">Pinata API key</label>
-        <b-form-input v-if="signingUp" v-model="input.pinataApi" :state="pinataApiValidation" id="feedback-pinata-api"></b-form-input>
-        <b-form-invalid-feedback v-if="signingUp" :state="pinataApiValidation">{{ pinataApiValidationErrorMsg }}</b-form-invalid-feedback>
+        <b-form-input
+          v-if="signingUp"
+          v-model="input.pinataApi"
+          :state="pinataApiValidation"
+          id="feedback-pinata-api"
+        ></b-form-input>
+        <b-form-invalid-feedback v-if="signingUp" :state="pinataApiValidation">{{
+          pinataApiValidationErrorMsg
+        }}</b-form-invalid-feedback>
         <!-- <b-form-valid-feedback v-if="signingUp" :state="pinataApiValidation">Looks Good.</b-form-valid-feedback> -->
 
         <label v-if="signingUp" for="feedback-pinata-secret">Pinata secret API key</label>
-        <b-form-input v-if="signingUp" v-model="input.pinataSecret" :state="pinataSecretValidation" type="password" id="feedback-pinata-secret"></b-form-input>
-        <b-form-invalid-feedback v-if="signingUp" :state="pinataSecretValidation">{{ pinataSecretValidationErrorMsg }}</b-form-invalid-feedback>
+        <b-form-input
+          v-if="signingUp"
+          v-model="input.pinataSecret"
+          :state="pinataSecretValidation"
+          type="password"
+          id="feedback-pinata-secret"
+        ></b-form-input>
+        <b-form-invalid-feedback v-if="signingUp" :state="pinataSecretValidation">{{
+          pinataSecretValidationErrorMsg
+        }}</b-form-invalid-feedback>
         <!-- <b-form-valid-feedback v-if="signingUp" :state="pinataSecretValidation">Looks Good.</b-form-valid-feedback> -->
 
         <span id="login-signup-buttons">
-          <b-button v-if="signingUp" :disabled="loginButtonDisable" type="submit" @click="SignUp()" variant="primary">
+          <b-button
+            v-if="signingUp"
+            :disabled="loginButtonDisable"
+            type="submit"
+            @click="SignUp()"
+            variant="primary"
+          >
             <font-awesome-icon v-show="loggingIn" icon="spinner" spin />
             Sign up</b-button
           >
-          <b-button v-else :disabled="loginButtonDisable" type="submit" @click="login()" variant="primary">
+          <b-button
+            v-else
+            :disabled="loginButtonDisable"
+            type="submit"
+            @click="login()"
+            variant="primary"
+          >
             <font-awesome-icon v-show="loggingIn" icon="spinner" spin />
             Log in</b-button
           >
 
-          <b-button v-if="signingUp" :disabled="loginButtonDisable" type="submit" id="sign-up-a" @click="toggleSigningUp()" variant="secondary">Log in</b-button>
-          <b-button v-else :disabled="loginButtonDisable" type="submit" id="sign-up-a" @click="toggleSigningUp()" variant="secondary">Sign up</b-button>
+          <b-button
+            v-if="signingUp"
+            :disabled="loginButtonDisable"
+            type="submit"
+            id="sign-up-a"
+            @click="toggleSigningUp()"
+            variant="secondary"
+            >Log in</b-button
+          >
+          <b-button
+            v-else
+            :disabled="loginButtonDisable"
+            type="submit"
+            id="sign-up-a"
+            @click="toggleSigningUp()"
+            variant="secondary"
+            >Sign up</b-button
+          >
         </span>
       </b-form>
     </div>
@@ -139,7 +208,12 @@ export default {
       }
     },
     invalidSignUp() {
-      if (!this.emailValidation || !this.passwordValidation || !this.pinataApiValidation || !this.pinataSecretValidation) {
+      if (
+        !this.emailValidation ||
+        !this.passwordValidation ||
+        !this.pinataApiValidation ||
+        !this.pinataSecretValidation
+      ) {
         return true;
       } else {
         return false;
@@ -168,8 +242,8 @@ export default {
     },
   },
   methods: {
-    log(message) {
-      chrome.extension.getBackgroundPage().console.log(message);
+    log(...message) {
+      chrome.extension.getBackgroundPage().console.log(String(message));
     },
     login() {
       this.loggingIn = true;
@@ -197,13 +271,13 @@ export default {
             // this.$store.commit('updateInitialSync', 0);
             // this.$router.push('home');
             this.$emit('loginSuccess');
-            this.log(' logged in!');
+            this.log(['jwt', this.$store.state.jwt]);
           }
           this.loggingIn = false;
         })
         .catch(function(err) {
           // console.log(err);
-          // this.failedLogin = true    // this should be added to store, says this is undefined
+          // this.failedLogin = true   // this should be added to store, says this is undefined
           this.apiErrorMsg = err;
         });
     },
@@ -253,9 +327,9 @@ export default {
       this.dismissCountDown = this.dismissSecs;
     },
   },
-  mounted() {
-    this.$emit('homeLoad');
-  },
+  //   mounted() {
+  //     this.$emit('homeLoad');
+  //   },
 };
 </script>
 

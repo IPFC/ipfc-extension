@@ -25,5 +25,5 @@
     "storage"
   ],
 
-  "web_accessible_resources": ["sidebar/sidebar.js"]
+  "web_accessible_resources": ["sidebar/sidebar.js", "popup/popup.html"]
 }

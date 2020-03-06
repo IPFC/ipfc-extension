@@ -1,29 +1,47 @@
 <template>
   <div id="popup-body">
     <login v-if="!loggedIn" @loginSuccess="setLoggedIn" />
-    <p v-if="loggedIn" @click="resizeInitialWindow">Click to open sidebar</p>
+    <p v-if="loggedIn" @click="openSidebarWindow">
+      Click to open sidebar in a new window
+    </p>
+    <hr v-if="loggedIn" />
+    <p v-if="loggedIn" @click="openInThisWindow">
+      Click to open sidebar this window
+    </p>
   </div>
 </template>
 
 <script>
+import { mapState } from 'vuex';
 import login from '../components/Login.vue';
 export default {
-  name: 'sidebar',
   data() {
     return {
       loggedIn: false,
+      runInThisWindow: false,
+      runInNewWindow: false,
+      jwt: null,
     };
+  },
+  computed: {
+    ...mapState(['jwt', 'jwtValid']),
   },
   components: { login },
   methods: {
     setLoggedIn() {
-      this.log('  set login to true')
       this.loggedIn = true;
     },
-    log(message) {
-      chrome.extension.getBackgroundPage().console.log(message);
+    log(...message) {
+      chrome.extension.getBackgroundPage().console.log(String(message));
     },
-    resizeInitialWindow() {
+    openInThisWindow() {
+      chrome.tabs.executeScript({
+        file: 'sidebar/sidebar.js',
+      });
+      this.$store.commit('updateRunInNewWindow', false);
+    },
+    openSidebarWindow() {
+      this.$store.commit('updateRunInNewWindow', true);
       chrome.windows.getCurrent(function(win) {
         const sidebar = {
           type: 'popup',
@@ -53,11 +71,34 @@ export default {
         chrome.windows.create(sidebar);
       });
     },
+    async checkJwt() {
+      // this.log(['check jwt', this.$store.state.jwt]);
+      // this.log(['checking jwt before', this.$store.state.jwtValid]);
+      await this.$store.dispatch('checkJwt');
+      // this.log(['checking jwt after', this.$store.state.jwtValid]);
+      if (this.$store.state.jwtValid) {
+        this.loggedIn = true;
+      }
+    },
+  },
+  mounted() {
+    const that = this;
+    chrome.storage.sync.get(['jwt'], function(result) {
+      that.$store.commit('updateJwt', result.jwt);
+      that.checkJwt();
+    });
+
+    // if(this.jwt !== null) {
+    //    this.checkJwt();
+    // }
   },
 };
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
+#popup-body {
+  min-width: 300px;
+}
 p {
   font-size: 20px;
   color: orange;
