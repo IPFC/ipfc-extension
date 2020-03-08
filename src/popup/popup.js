@@ -5,48 +5,54 @@ import '../assets/_custom.scss';
 import { LayoutPlugin, BButton } from 'bootstrap-vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
-  faMinusCircle,
-  faToggleOn,
-  faToggleOff,
-  faEllipsisH,
-  faPlusCircle,
-  faStepForward,
-  faStepBackward,
-  faEdit,
-  faUndo,
-  faTrashAlt,
-  faSearch,
-  faCloud,
-  faCheck,
-  faTimes,
-  faSync,
+  // faMinusCircle,
+  // faToggleOn,
+  // faToggleOff,
+  // faEllipsisH,
+  // faPlusCircle,
+  // faStepForward,
+  // faStepBackward,
+  // faEdit,
+  // faUndo,
+  // faTrashAlt,
+  // faSearch,
+  // faCloud,
+  // faCheck,
+  // faTimes,
+  // faSync,
   faSpinner,
-  faExclamation,
+  // faExclamation,
 } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon, FontAwesomeLayers } from '@fortawesome/vue-fontawesome';
+import {
+  FontAwesomeIcon,
+  // FontAwesomeLayers
+} from '@fortawesome/vue-fontawesome';
 
 library.add(
-  faMinusCircle,
-  faToggleOn,
-  faToggleOff,
-  faEllipsisH,
-  faPlusCircle,
-  faStepForward,
-  faStepBackward,
-  faEdit,
-  faUndo,
-  faTrashAlt,
-  faSearch,
-  faCloud,
-  faCheck,
-  faTimes,
-  faSync,
-  faSpinner,
-  faExclamation
+  // faMinusCircle,
+  // faToggleOn,
+  // faToggleOff,
+  // faEllipsisH,
+  // faPlusCircle,
+  // faStepForward,
+  // faStepBackward,
+  // faEdit,
+  // faUndo,
+  // faTrashAlt,
+  // faSearch,
+  // faCloud,
+  // faCheck,
+  // faTimes,
+  // faSync,
+  faSpinner
+  // faExclamation
 );
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
-Vue.component('font-awesome-layers', FontAwesomeLayers);
+Vue.component(
+  'font-awesome-layers'
+  // FontAwesomeLayers
+);
 
 Vue.use(LayoutPlugin);
 Vue.component('b-button', BButton);

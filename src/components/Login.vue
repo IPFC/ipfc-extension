@@ -184,7 +184,7 @@ export default {
       }
     },
     pinataApiValidationErrorMsg() {
-      let pinataApi = this.input.pinataApi;
+      const pinataApi = this.input.pinataApi;
       if (pinataApi.length < 20 || pinataApi.length > 20) {
         return "Invalid pinata api key. In pinata, click the profile icon, then 'account'";
       } else {
@@ -192,7 +192,7 @@ export default {
       }
     },
     pinataSecretValidation() {
-      let pinataSecret = this.input.pinataSecret;
+      const pinataSecret = this.input.pinataSecret;
       if (pinataSecret.length < 64 || pinataSecret.password > 64) {
         return false;
       } else {
@@ -200,7 +200,7 @@ export default {
       }
     },
     pinataSecretValidationErrorMsg() {
-      let pinataSecret = this.input.pinataSecret;
+      const pinataSecret = this.input.pinataSecret;
       if (pinataSecret.length < 64 || pinataSecret.length > 64) {
         return "Invalid pinata api secret key. In pinata, click the profile icon, then 'account'";
       } else {
@@ -258,13 +258,13 @@ export default {
         .then(response => response.json())
         .then(data => {
           // console.log(data);
-          if (!data['token']) {
+          if (!data.token) {
             this.failedLogin = true;
-            this.apiErrorMsg = data['error'];
+            this.apiErrorMsg = data.error;
           } else {
-            this.$store.commit('updateJwt', data['token']);
+            this.$store.commit('updateJwt', data.token);
             this.$store.dispatch('checkJwt');
-            this.$store.commit('updatePinataKeys', data['pinata_keys']);
+            this.$store.commit('updatePinataKeys', data.pinata_keys);
             // const userCollection = this.$store.state.userCollection;
             // userCollection.user_id = data['user_id'];
             // this.$store.commit('updateUserCollection', userCollection);

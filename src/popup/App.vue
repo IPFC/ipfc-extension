@@ -31,9 +31,6 @@ export default {
     setLoggedIn() {
       this.loggedIn = true;
     },
-    log(...message) {
-      chrome.extension.getBackgroundPage().console.log(String(message));
-    },
     openInThisWindow() {
       chrome.tabs.executeScript({
         file: 'sidebar/sidebar.js',

@@ -10,7 +10,14 @@ const config = {
   mode: process.env.NODE_ENV,
   context: __dirname + '/src',
   entry: {
+    'jquery-2.1.3.min': './jquery-2.1.3.min.js',
     background: './background.js',
+    'highlighter/background/errorManager': './highlighter/background/errorManager.js',
+    'highlighter/background/highlight': './highlighter/background/highlight.js',
+    'highlighter/background/loadHighlights': './highlighter/background/loadHighlights.js',
+    'highlighter/background/storageManager': './highlighter/background/storageManager.js',
+    'highlighter/called/getHighlight': './highlighter/called/getHighlight.js',
+    'highlighter/called/removeHighlights': './highlighter/called/removeHighlights.js',
     'popup/popup': './popup/popup.js',
     'options/options': './options/options.js',
     'sidebar/sidebar': './sidebar/sidebar.js',
@@ -86,7 +93,8 @@ const config = {
           jsonContent.version = version;
 
           if (config.mode === 'development') {
-            jsonContent['content_security_policy'] = "script-src 'self' 'unsafe-eval'; object-src 'self'";
+            jsonContent['content_security_policy'] =
+              "script-src 'self' 'unsafe-eval'; object-src 'self'";
           }
 
           return JSON.stringify(jsonContent, null, 2);

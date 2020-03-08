@@ -32,11 +32,11 @@ export default {
       } else if (sidebarWidth < 250) {
         sidebarWidth = 250;
       }
-      console.log(sidebarWidth);
-      console.log(document.body.style);
+      // console.log(sidebarWidth);
+      // console.log(document.body.style);
 
       document.body.style.width = `${window.innerWidth - sidebarWidth}px`;
-      console.log(document.body.style);
+      // console.log(document.body.style);
 
       this.sidebarStyle = {
         width: `${sidebarWidth}px`,
