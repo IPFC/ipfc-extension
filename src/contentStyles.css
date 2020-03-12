@@ -1,0 +1,8 @@
+.highlighter--highlighted:hover {
+  cursor: pointer;
+  background-color: #F8690D;
+}
+
+.highlighter--highlighted {
+  background-color: rgba(248, 103, 13, 0.5);
+}

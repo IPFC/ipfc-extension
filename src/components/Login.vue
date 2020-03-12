@@ -10,12 +10,12 @@
       >
         {{ apiErrorMsg }}
       </b-alert>
-      <b-form @submit.stop.prevent id="form-signin">
+      <b-form id="form-signin" @submit.stop.prevent>
         <label for="feedback-email">Email</label>
         <b-form-input
+          id="feedback-email"
           v-model="input.email"
           :state="emailValidation"
-          id="feedback-email"
         ></b-form-input>
         <b-form-invalid-feedback v-if="input.email" :state="emailValidation">{{
           emailValidationErrorMsg
@@ -24,10 +24,10 @@
 
         <label for="feedback-password">Password</label>
         <b-form-input
+          id="feedback-password"
           v-model="input.password"
           :state="passwordValidation"
           type="password"
-          id="feedback-password"
         ></b-form-input>
         <b-form-invalid-feedback v-if="input.password" :state="passwordValidation">{{
           passwordValidationErrorMsg
@@ -35,47 +35,47 @@
         <!-- <b-form-valid-feedback :state="passwordValidation">Looks Good.</b-form-valid-feedback> -->
 
         <b-button
-          v-if="signingUp"
+          v-if="showSignUp"
           id="button-get-pinata"
           type="submit"
-          @click="OpenPinata()"
           variant="primary"
+          @click="OpenPinata()"
           >Get Pinata</b-button
         >
         <br />
 
-        <label v-if="signingUp" for="feedback-pinata-api">Pinata API key</label>
+        <label v-if="showSignUp" for="feedback-pinata-api">Pinata API key</label>
         <b-form-input
-          v-if="signingUp"
+          v-if="showSignUp"
+          id="feedback-pinata-api"
           v-model="input.pinataApi"
           :state="pinataApiValidation"
-          id="feedback-pinata-api"
         ></b-form-input>
-        <b-form-invalid-feedback v-if="signingUp" :state="pinataApiValidation">{{
+        <b-form-invalid-feedback v-if="showSignUp" :state="pinataApiValidation">{{
           pinataApiValidationErrorMsg
         }}</b-form-invalid-feedback>
-        <!-- <b-form-valid-feedback v-if="signingUp" :state="pinataApiValidation">Looks Good.</b-form-valid-feedback> -->
+        <!-- <b-form-valid-feedback v-if="showSignUp" :state="pinataApiValidation">Looks Good.</b-form-valid-feedback> -->
 
-        <label v-if="signingUp" for="feedback-pinata-secret">Pinata secret API key</label>
+        <label v-if="showSignUp" for="feedback-pinata-secret">Pinata secret API key</label>
         <b-form-input
-          v-if="signingUp"
+          v-if="showSignUp"
+          id="feedback-pinata-secret"
           v-model="input.pinataSecret"
           :state="pinataSecretValidation"
           type="password"
-          id="feedback-pinata-secret"
         ></b-form-input>
-        <b-form-invalid-feedback v-if="signingUp" :state="pinataSecretValidation">{{
+        <b-form-invalid-feedback v-if="showSignUp" :state="pinataSecretValidation">{{
           pinataSecretValidationErrorMsg
         }}</b-form-invalid-feedback>
-        <!-- <b-form-valid-feedback v-if="signingUp" :state="pinataSecretValidation">Looks Good.</b-form-valid-feedback> -->
+        <!-- <b-form-valid-feedback v-if="showSignUp" :state="pinataSecretValidation">Looks Good.</b-form-valid-feedback> -->
 
         <span id="login-signup-buttons">
           <b-button
-            v-if="signingUp"
+            v-if="showSignUp"
             :disabled="loginButtonDisable"
             type="submit"
-            @click="SignUp()"
             variant="primary"
+            @click="SignUp()"
           >
             <font-awesome-icon v-show="loggingIn" icon="spinner" spin />
             Sign up</b-button
@@ -84,29 +84,27 @@
             v-else
             :disabled="loginButtonDisable"
             type="submit"
-            @click="login()"
             variant="primary"
+            @click="login()"
           >
             <font-awesome-icon v-show="loggingIn" icon="spinner" spin />
             Log in</b-button
           >
 
           <b-button
-            v-if="signingUp"
-            :disabled="loginButtonDisable"
-            type="submit"
+            v-if="showSignUp"
             id="sign-up-a"
-            @click="toggleSigningUp()"
+            type="submit"
             variant="secondary"
+            @click="toggleShowSignUp()"
             >Log in</b-button
           >
           <b-button
             v-else
-            :disabled="loginButtonDisable"
-            type="submit"
             id="sign-up-a"
-            @click="toggleSigningUp()"
+            type="submit"
             variant="secondary"
+            @click="toggleShowSignUp()"
             >Sign up</b-button
           >
         </span>
@@ -116,6 +114,9 @@
 </template>
 <script>
 import { BForm, BFormInvalidFeedback, BFormInput, BAlert } from 'bootstrap-vue';
+import defaultCollection from '../assets/defaultCollection.json';
+
+const axios = require('axios');
 export default {
   name: 'Login',
   components: { BForm, BFormInvalidFeedback, BFormInput, BAlert },
@@ -132,7 +133,7 @@ export default {
       dismissSecs: 5,
       dismissCountDown: 0,
       loggingIn: false,
-      signingUp: false,
+      showSignUp: false,
       serverURL: 'https://ipfc-midware.herokuapp.com',
     };
   },
@@ -245,41 +246,66 @@ export default {
     log(...message) {
       chrome.extension.getBackgroundPage().console.log(String(message));
     },
+    async callAPI(url, headers, method, data = null, callback = null) {
+      const that = this;
+      const options = {
+        url: url,
+        headers: headers,
+        method: method,
+      };
+      if (data !== null) {
+        options.data = data;
+      }
+      // console.log('options', options);
+      await axios(options)
+        .then(response => {
+          data = response.data;
+          // console.log('data', data);
+          if (callback !== null) {
+            callback(data, that);
+          }
+          return data;
+        })
+        .catch(function(err) {
+          that.failedLogin = true;
+          that.apiErrorMsg = err;
+        });
+    },
     login() {
       this.loggingIn = true;
       this.failedLogin = false;
       const loginURL = this.serverURL + '/login';
-      const headers = new Headers();
       const username = this.input.email;
       const password = this.input.password;
-      headers.append('Content-Type', 'application/json');
-      headers.append('Authorization', 'Basic ' + btoa(username + ':' + password));
-      fetch(loginURL, { headers: headers })
-        .then(response => response.json())
-        .then(data => {
-          // console.log(data);
-          if (!data.token) {
-            this.failedLogin = true;
-            this.apiErrorMsg = data.error;
-          } else {
-            this.$store.commit('updateJwt', data.token);
-            this.$store.dispatch('checkJwt');
-            this.$store.commit('updatePinataKeys', data.pinata_keys);
-            // const userCollection = this.$store.state.userCollection;
-            // userCollection.user_id = data['user_id'];
-            // this.$store.commit('updateUserCollection', userCollection);
-            // this.$store.commit('updateInitialSync', 0);
-            // this.$router.push('home');
-            this.$emit('loginSuccess');
-            this.log(['jwt', this.$store.state.jwt]);
-          }
-          this.loggingIn = false;
-        })
-        .catch(function(err) {
-          // console.log(err);
-          // this.failedLogin = true   // this should be added to store, says this is undefined
-          this.apiErrorMsg = err;
-        });
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: 'Basic ' + btoa(username + ':' + password),
+      };
+      const loginCallback = function(data, that) {
+        if (!data.token) {
+          that.failedLogin = true;
+          that.apiErrorMsg = data.error;
+        } else {
+          that.$store.commit('updateJwt', data.token);
+          that.$store.dispatch('checkJwt');
+          that.$store.commit('updatePinataKeys', data.pinata_keys);
+          that.getMeta(data.token, data.pinata_keys, that);
+        }
+        that.loggingIn = false;
+      };
+      this.callAPI(loginURL, headers, 'GET', null, loginCallback);
+    },
+    getMeta(token, pinataKeys, that) {
+      const getMetaHeaders = {
+        'Content-Type': 'application/json',
+        'x-access-token': token,
+      };
+      const getMetaURL = that.serverURL + '/get_meta_and_collection';
+      const getMetaCallback = function(data) {
+        that.$store.commit('updateUserCollection', data.user_collection);
+        that.$emit('loginSuccess');
+      };
+      this.callAPI(getMetaURL, getMetaHeaders, 'GET', null, getMetaCallback);
     },
     SignUp() {
       this.loggingIn = true;
@@ -290,33 +316,23 @@ export default {
         password: this.input.password,
         pinata_api: this.input.pinataApi,
         pinata_key: this.input.pinataSecret,
+        user_collection: defaultCollection.user_collection,
       };
-      fetch(signupURL, {
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        method: 'POST',
-      })
-        .then(response => response.json())
-        .then(data => {
-          // console.log(data);
-          if (!data.message) {
-            this.failedLogin = true;
-            this.apiErrorMsg = data.error;
-          } else {
-            this.login();
-          }
-          this.loggingIn = false;
-        })
-        .catch(function(err) {
-          this.failedLogin = true;
-          this.apiErrorMsg = err;
-          // console.log(error);
-        });
+      const headers = { 'Content-Type': 'application/json' };
+      const signupCallback = function(data, that) {
+        if (!data.message) {
+          that.failedLogin = true;
+          that.apiErrorMsg = data.error;
+        } else {
+          that.login();
+        }
+        that.loggingIn = false;
+      };
+      this.callAPI(signupURL, headers, 'POST', signupCallback, data);
     },
-    toggleSigningUp() {
-      this.signingUp = !this.signingUp;
+    toggleShowSignUp() {
+      this.showSignUp = !this.showSignUp;
     },
-
     OpenPinata() {
       window.open('https://pinata.cloud/signup', '_blank');
     },

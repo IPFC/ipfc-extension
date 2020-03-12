@@ -19,10 +19,12 @@
   "content_scripts": [{
     "matches": ["<all_urls>"],
     "js": ["highlighter/background/errorManager.js",
-      "highlighter/background/highlight.js",
+      "highlighter/background/highlighter.js",
       "highlighter/background/loadHighlights.js",
-      "highlighter/background/storageManager.js"
+      "highlighter/background/storageManager.js",
+      "cardEditor/cardEditor.js"
     ],
+    "css": ["contentStyles.css", "cardEditor/cardEditor.css"],
     "all_frames": true
   }],
   "options_ui": {

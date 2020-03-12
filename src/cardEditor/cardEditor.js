@@ -4,6 +4,10 @@ import store from '../store';
 import '../assets/_custom.scss';
 import { LayoutPlugin, BButton } from 'bootstrap-vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
+import VueDOMPurifyHTML from 'vue-dompurify-html';
+import 'highlight.js/styles/monokai-sublime.css';
+import Highlight from '../utils/syntaxHighlight';
+
 import {
   // faMinusCircle,
   // faToggleOn,
@@ -14,11 +18,11 @@ import {
   // faStepBackward,
   // faEdit,
   // faUndo,
-  faTrashAlt,
+  // faTrashAlt,
   // faSearch,
   // faCloud,
   faCheck,
-  // faTimes,
+  faTimes,
   // faSync,
   // faSpinner,
   // faExclamation,
@@ -38,11 +42,11 @@ library.add(
   // faStepBackward,
   // faEdit,
   // faUndo,
-  faTrashAlt,
+  // faTrashAlt,
   // faSearch,
   // faCloud,
-  faCheck
-  // faTimes,
+  faCheck,
+  faTimes
   // faSync,
   // faSpinner
   // faExclamation
@@ -53,9 +57,11 @@ Vue.component(
   'font-awesome-layers'
   // FontAwesomeLayers
 );
-
-Vue.use(LayoutPlugin);
 Vue.component('b-button', BButton);
+
+Vue.use(VueDOMPurifyHTML);
+Vue.use(LayoutPlugin);
+Vue.use(Highlight);
 
 global.browser = require('webextension-polyfill');
 Vue.prototype.$browser = global.browser;
@@ -69,6 +75,5 @@ document.body.prepend(app);
 new Vue({
   el: '#app',
   store,
-
   render: h => h(App),
 });

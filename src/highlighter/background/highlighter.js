@@ -1,5 +1,11 @@
 var $ = require('jquery');
 
+$(document).click(function(event) {
+  var target = $(event.target);
+  console.log(target);
+  console.log(target[0].id);
+});
+
 // Pick a combination of characters that should (almost) never occur
 var DELIMITERS = {
   start: '~|:;',
@@ -7,10 +13,11 @@ var DELIMITERS = {
 };
 
 var HIGHLIGHT_CLASS = 'highlighter--highlighted';
-
-function getReplacements(color) {
+function getReplacements(color, highlightId) {
+  console.log('get replacements. id', highlightId);
   return {
-    start: '<span class="' + HIGHLIGHT_CLASS + '" style="background-color: ' + color + ';">',
+    // removed style="background-color: ' + color + ';
+    start: `<span id="${highlightId}" class="${HIGHLIGHT_CLASS}">`,
     end: '</span>',
   };
 }
@@ -39,11 +46,11 @@ function resetVars() {
   alreadyHighlighted = true;
 }
 
-const highlight = function(selString, container, selection, color) {
+const highlight = function(selString, container, selection, color, highlightId) {
   resetVars();
   // console.log('highlight called');
   // console.log(selString, container, selection, color);
-
+  console.log(highlightId);
   selectionString = selString;
   selectionLength = selectionString.length;
 
@@ -66,8 +73,8 @@ const highlight = function(selString, container, selection, color) {
   // Step 1 + 2:
   recursiveWrapper(container);
   //  color = color ? color : 'yellow';
-  color = color ? color : '#F8690D';
-  var replacements = getReplacements(color);
+  color = color ? color : 'rgba(248, 103, 13, 0.728)';
+  var replacements = getReplacements(color, highlightId);
 
   // Step 3:
   // Either highlight, or un-highlight the selection

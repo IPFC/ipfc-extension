@@ -8,6 +8,9 @@
     <p v-if="loggedIn" @click="openInThisWindow">
       Click to open sidebar this window
     </p>
+    <p v-if="loggedIn" @click="logout">
+      Click to log out
+    </p>
   </div>
 </template>
 
@@ -15,21 +18,76 @@
 import { mapState } from 'vuex';
 import login from '../components/Login.vue';
 export default {
+  components: { login },
   data() {
     return {
       loggedIn: false,
       runInThisWindow: false,
       runInNewWindow: false,
-      jwt: null,
     };
   },
   computed: {
     ...mapState(['jwt', 'jwtValid']),
   },
-  components: { login },
+  created() {
+    this.startUpStoreSync('popup');
+  },
+  mounted() {},
   methods: {
+    startUpStoreSync(name) {
+      const that = this;
+      var port = chrome.runtime.connect({ name: name });
+      port.postMessage({ startup: true });
+      port.onMessage.addListener(function(msg) {
+        if (msg.startup) {
+          const state = JSON.parse(JSON.stringify(msg.state));
+          // console.log(state);
+          for (const stateItem in state) {
+            if (stateItem === 'user_collection') {
+              that.$store.commit('updateUserCollection', state[stateItem]);
+            } else if (stateItem !== 'jwtValid') {
+              const Capitalized =
+                String(stateItem)
+                  .charAt(0)
+                  .toUpperCase() + String(stateItem).slice(1);
+              // console.log('state.stateItem', state[stateItem]);
+              that.$store.commit('update' + Capitalized, state[stateItem]);
+              if (stateItem === 'jwt') {
+                that.checkJwt();
+              }
+            }
+          }
+        }
+      });
+      this.storeChangeListener();
+    },
+    storeChangeListener() {
+      const that = this;
+      chrome.runtime.onConnect.addListener(function(port) {
+        if (port.name === 'background') {
+          port.onMessage.addListener(function(msg) {
+            if (msg.stateChanged) {
+              if (msg.stateItem === 'user_collection') {
+                that.$store.commt('updateUserCollection', msg.value);
+              } else {
+                const Capitalized =
+                  String(msg.stateItem)
+                    .charAt(0)
+                    .toUpperCase() + String(msg.stateItem).slice(1);
+                that.$store.commit('update' + Capitalized, msg.value);
+              }
+            }
+          });
+        }
+      });
+    },
     setLoggedIn() {
+      // console.log('setLoggedIn');
       this.loggedIn = true;
+    },
+    logout() {
+      this.$store.dispatch('logout');
+      window.close();
     },
     openInThisWindow() {
       chrome.tabs.executeScript({
@@ -69,25 +127,11 @@ export default {
       });
     },
     async checkJwt() {
-      // this.log(['check jwt', this.$store.state.jwt]);
-      // this.log(['checking jwt before', this.$store.state.jwtValid]);
       await this.$store.dispatch('checkJwt');
-      // this.log(['checking jwt after', this.$store.state.jwtValid]);
       if (this.$store.state.jwtValid) {
         this.loggedIn = true;
       }
     },
-  },
-  mounted() {
-    const that = this;
-    chrome.storage.sync.get(['jwt'], function(result) {
-      that.$store.commit('updateJwt', result.jwt);
-      that.checkJwt();
-    });
-
-    // if(this.jwt !== null) {
-    //    this.checkJwt();
-    // }
   },
 };
 </script>
@@ -95,6 +139,8 @@ export default {
 <style scoped>
 #popup-body {
   min-width: 300px;
+  background-color: #f6f6f6;
+  padding: 0;
 }
 p {
   font-size: 20px;

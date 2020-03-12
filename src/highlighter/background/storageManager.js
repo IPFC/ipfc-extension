@@ -1,16 +1,16 @@
 import { addHighlightError } from './errorManager.js';
-import { highlight } from './highlight.js';
+import { highlight } from './highlighter.js';
 var $ = require('jquery');
 // consider not storing color
-const storeHighlight = function(selection, container, url, color, callback) {
+const storeHighlight = function(selection, container, url, color, highlightId, callback) {
   // console.log('storeHighlight called');
   chrome.storage.local.get({ highlights: {} }, result => {
-    var highlights = result.highlights;
-
-    if (!highlights[url]) highlights[url] = [];
+    const highlights = result.highlights;
+    // console.log(highlights);
+    if (!highlights[url]) highlights[url] = {};
     //
     // highlights = { 'url': [ { string: '', container: ... }, {...}]}
-    highlights[url].push({
+    highlights[url][highlightId] = {
       string: selection.toString(),
       container: getQuery(container),
       anchorNode: getQuery(selection.anchorNode),
@@ -18,8 +18,8 @@ const storeHighlight = function(selection, container, url, color, callback) {
       focusNode: getQuery(selection.focusNode),
       focusOffset: selection.focusOffset,
       color: color,
-    });
-    // console.log('highlights[url]', highlights[url]);
+    };
+    console.log('highlights[url]', highlights[url]);
     chrome.storage.local.set({ highlights });
     if (callback) callback();
   });
@@ -29,17 +29,18 @@ const loadAllHighlights = function(url) {
   // console.log('loadAllHighlights');
   chrome.storage.local.get({ highlights: {} }, function(result) {
     // console.log('load highlights result');
-    const highlights = result.highlights[url];
-    // console.log(highlights);
-    if (result.highlights[url] !== undefined) {
-      for (let i = 0; highlights && i < highlights.length; i++) {
-        loadHighlight(highlights[i]);
+    const thisURLsHighlights = result.highlights[url];
+    // console.log(result.highlights);
+    if (thisURLsHighlights !== undefined) {
+      const highlightIds = Object.keys(thisURLsHighlights);
+      for (const key of highlightIds) {
+        loadHighlight(thisURLsHighlights[key], key);
       }
     }
   });
 };
 
-const loadHighlight = function(highlightVal, noErrorTracking) {
+const loadHighlight = function(highlightVal, highlightId, noErrorTracking) {
   // noErrorTracking is optional
   // console.log('load highlight called');
   // console.log('anchor node', highlightVal.anchorNode);
@@ -59,7 +60,7 @@ const loadHighlight = function(highlightVal, noErrorTracking) {
     }
     return false;
   } else {
-    const success = highlight(selectionString, container, selection, color);
+    const success = highlight(selectionString, container, selection, color, highlightId);
     if (!noErrorTracking && !success) {
       addHighlightError(highlightVal);
     }

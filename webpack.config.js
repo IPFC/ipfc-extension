@@ -12,13 +12,15 @@ const config = {
   entry: {
     'jquery-2.1.3.min': './jquery-2.1.3.min.js',
     background: './background.js',
+    // 'contentStyles.css': './contentStyles.css',
     'highlighter/background/errorManager': './highlighter/background/errorManager.js',
-    'highlighter/background/highlight': './highlighter/background/highlight.js',
+    'highlighter/background/highlighter': './highlighter/background/highlighter.js',
     'highlighter/background/loadHighlights': './highlighter/background/loadHighlights.js',
     'highlighter/background/storageManager': './highlighter/background/storageManager.js',
     'highlighter/called/getHighlight': './highlighter/called/getHighlight.js',
     'highlighter/called/removeHighlights': './highlighter/called/removeHighlights.js',
     'popup/popup': './popup/popup.js',
+    'cardEditor/cardEditor': './cardEditor/cardEditor.js',
     'options/options': './options/options.js',
     'sidebar/sidebar': './sidebar/sidebar.js',
   },
@@ -81,10 +83,17 @@ const config = {
       filename: '[name].css',
     }),
     new CopyPlugin([
+      { from: 'contentStyles.css', to: 'contentStyles.css' },
       { from: 'icons', to: 'icons', ignore: ['icon.xcf'] },
       { from: 'popup/popup.html', to: 'popup/popup.html', transform: transformHtml },
       { from: 'options/options.html', to: 'options/options.html', transform: transformHtml },
       { from: 'sidebar/sidebar.html', to: 'sidebar/sidebar.html', transform: transformHtml },
+      {
+        from: 'cardEditor/cardEditor.html',
+        to: 'cardEditor/cardEditor.html',
+        transform: transformHtml,
+      },
+
       {
         from: 'manifest.json',
         to: 'manifest.json',
