@@ -21,15 +21,13 @@ const setStore = function() {
     }
   );
 };
+// this listener might overload the browser runtime.lastError: QUOTA_BYTES_PER_ITEM quota exceeded
 const storageListener = function(port) {
   chrome.storage.onChanged.addListener(function(changes, namespace) {
     for (var key in changes) {
       var storageChange = changes[key];
       console.log(
-        'Storage key "%s" in namespace "%s" changed. ' + 'Old value was "%s", new value is "%s".',
-        key,
-        namespace,
-        storageChange.oldValue,
+        `Storage key ${key} changed. Old value was ${storageChange.oldValue}, new value is ${storageChange.newValue}`,
         storageChange.newValue
       );
       if (store.state[key]) {
@@ -66,7 +64,7 @@ document.addEventListener(
   },
   false
 );
-const checkJwt = async function() {
+const checkJwt = function() {
   chrome.storage.local.get(['jwt'], function(result) {
     store.commit('updateJwt', result.jwt);
     store.dispatch('checkJwt');
@@ -78,7 +76,6 @@ chrome.contextMenus.create({
   onclick: makeFlashcard,
   contexts: ['selection'],
 });
-// this listener might overload the browser runtime.lastError: QUOTA_BYTES_PER_ITEM quota exceeded
 
 chrome.runtime.onConnect.addListener(function(port) {
   if (port.name === 'editor' || port.name === 'popup') {

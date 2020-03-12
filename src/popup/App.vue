@@ -2,14 +2,15 @@
   <div id="popup-body">
     <login v-if="!loggedIn" @loginSuccess="setLoggedIn" />
     <p v-if="loggedIn" @click="openSidebarWindow">
-      Click to open sidebar in a new window
+      Open sidebar in a new window
     </p>
     <hr v-if="loggedIn" />
     <p v-if="loggedIn" @click="openInThisWindow">
-      Click to open sidebar this window
+      Open sidebar this window
     </p>
+    <hr v-if="loggedIn" />
     <p v-if="loggedIn" @click="logout">
-      Click to log out
+      Log out
     </p>
   </div>
 </template>
