@@ -25,6 +25,7 @@ const config = {
     'cardEditor/cardEditor': './cardEditor/cardEditor.js',
     'options/options': './options/options.js',
     'sidebar/sidebar': './sidebar/sidebar.js',
+    'utils/sidebarContentScript': './utils/sidebarContentScript.js',
   },
   output: {
     path: __dirname + '/dist',

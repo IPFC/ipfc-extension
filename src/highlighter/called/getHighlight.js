@@ -16,7 +16,7 @@ if (selectionString) {
   }
 
   chrome.storage.local.get(['color', 'user_collection'], items => {
-    console.log(items.user_collection);
+    // console.log(items.user_collection);
     if (!items.user_collection) alert('please log in');
     const userId = items.user_collection.user_id;
     const color = items.color;
@@ -37,7 +37,7 @@ if (selectionString) {
     // finally call store from there, then do API call, sync to db
     // get rid of color?
     // console.log(selection, container, window.location.href, color);
-    console.log('new ID', highlightId);
+    // console.log('new ID', highlightId);
     storeHighlight(
       selection,
       container,

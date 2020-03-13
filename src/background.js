@@ -1,4 +1,4 @@
-import store from './store';
+// import store from './store';
 // const throttle = require('lodash/throttle');
 global.browser = require('webextension-polyfill');
 // var $ = require('jquery');

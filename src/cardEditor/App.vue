@@ -119,7 +119,7 @@ import imageUpload from 'quill-plugin-image-upload';
 import defaultCollection from '../assets/defaultCollection.json';
 import { storeCard } from '../highlighter/background/storageManager.js';
 
-const uuidv4 = require('uuid/v4');
+// const uuidv4 = require('uuid/v4');
 const axios = require('axios');
 const FormData = require('form-data');
 Quill.register('modules/imageUpload', imageUpload);
@@ -374,9 +374,9 @@ export default {
     },
     // use later for dropdown menu, copy to other deck
     addCardToDeck: function(deckId) {
-      const card = JSON.parse(JSON.stringify(this.card));
-      const addData = { deck_id: deckId, card: card };
-      this.$store.commit('addCard', addData);
+      // const card = JSON.parse(JSON.stringify(this.card));
+      // const addData = { deck_id: deckId, card: card };
+      // this.$store.commit('addCard', addData);
     },
     removeTagFromCard: function(tag) {
       const card = JSON.parse(JSON.stringify(this.card));
@@ -386,7 +386,7 @@ export default {
     addTagToCard: function(tag) {
       const card = JSON.parse(JSON.stringify(this.card));
       if (tag === 'Daily Review') {
-        this.$store.commit('addCardToSchedule', card.card_id);
+        // this.$store.commit('addCardToSchedule', card.card_id);
       }
       card.card_tags.unshift(tag);
       this.submit(card);
@@ -403,22 +403,22 @@ export default {
       if (this.newDeckTitle === '' || this.newDeckTitle === ' ') {
         this.toggleAddingDeck();
       } else {
-        const emptyDeck = {
-          cards: [this.card],
-          created_by: this.user_collection.user_id,
-          deck_id: uuidv4(),
-          deck_tags: [],
-          description: null,
-          editable_by: 'only_me',
-          edited: Math.round(new Date().getTime()),
-          lang_back: 'en',
-          lang_front: 'en',
-          term_count: 1,
-          title: this.newDeckTitle,
-          visibility: 'public',
-          icon_color: this.generateRandomHslaColor(),
-        };
-        this.$store.commit('addDeck', emptyDeck);
+        // const emptyDeck = {
+        //   cards: [this.card],
+        //   created_by: this.user_collection.user_id,
+        //   deck_id: uuidv4(),
+        //   deck_tags: [],
+        //   description: null,
+        //   editable_by: 'only_me',
+        //   edited: Math.round(new Date().getTime()),
+        //   lang_back: 'en',
+        //   lang_front: 'en',
+        //   term_count: 1,
+        //   title: this.newDeckTitle,
+        //   visibility: 'public',
+        //   icon_color: this.generateRandomHslaColor(),
+        // };
+        // this.$store.commit('addDeck', emptyDeck);
         this.newDeckTitle = '';
       }
     },

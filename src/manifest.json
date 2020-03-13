@@ -22,7 +22,8 @@
       "highlighter/background/highlighter.js",
       "highlighter/background/loadHighlights.js",
       "highlighter/background/storageManager.js",
-      "cardEditor/cardEditor.js"
+      "cardEditor/cardEditor.js",
+      "utils/sidebarContentScript.js"
     ],
     "css": ["contentStyles.css", "cardEditor/cardEditor.css"],
     "all_frames": true

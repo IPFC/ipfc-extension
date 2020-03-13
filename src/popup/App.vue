@@ -17,6 +17,7 @@
 
 <script>
 import login from '../components/Login.vue';
+import { createSidebar } from '../utils/sidebarContentScript.js';
 export default {
   components: { login },
   data() {
@@ -28,9 +29,9 @@ export default {
   },
   created() {},
   mounted() {
-    console.log(this.checkJwt());
+    // console.log(this.checkJwt());
     this.checkJwt().then(value => {
-      console.log(value);
+      // console.log(value);
       if (value) this.loggedIn = true;
       else this.loggedIn = false;
     });
@@ -45,7 +46,7 @@ export default {
         });
       };
       const jwt = await getJwt();
-      console.log('jwt', jwt);
+      // console.log('jwt', jwt);
       if (jwt === null) {
         return false;
       } else if (!jwt || jwt.split('.').length < 3) {
@@ -75,34 +76,7 @@ export default {
     },
     openSidebarWindow() {
       chrome.storage.local.set({ updateRunInNewWindow: true });
-      chrome.windows.getCurrent(function(win) {
-        const sidebar = {
-          type: 'popup',
-          url: 'sidebar/sidebar.html',
-        };
-        sidebar.height = win.height;
-        sidebar.top = win.top;
-        sidebar.width = Math.round(win.width * 0.25);
-        if (sidebar.width > 450) {
-          sidebar.width = 450;
-        } else if (sidebar.width < 250) {
-          sidebar.width = 250;
-        }
-        let updatedWinLeft = win.left;
-        let updatedWinWidth = win.width - sidebar.width;
-        if (updatedWinWidth < 500) {
-          updatedWinWidth = 500;
-        }
-        // if it won't fit on the left, put it on the right
-        if (win.left + updatedWinWidth + sidebar.width > window.screen.availWidth) {
-          updatedWinLeft += win.width - updatedWinWidth;
-          sidebar.left = updatedWinLeft - sidebar.width;
-        } else {
-          sidebar.left = win.left + updatedWinWidth;
-        }
-        chrome.windows.update(win.id, { width: updatedWinWidth, left: updatedWinLeft });
-        chrome.windows.create(sidebar);
-      });
+      createSidebar();
     },
   },
 };
