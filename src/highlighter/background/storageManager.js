@@ -2,14 +2,33 @@ import { addHighlightError } from './errorManager.js';
 import { highlight } from './highlighter.js';
 var $ = require('jquery');
 // consider not storing color
-const storeHighlight = function(selection, container, url, color, highlightId, callback) {
+
+$(document).ready(function() {
+  chrome.runtime.sendMessage({ pageLoaded: true });
+  // console.log('sent page loaded');
+  loadAllHighlights(window.location.href);
+});
+
+chrome.runtime.onMessage.addListener(function(msg) {
+  if (msg.refresh) loadAllHighlights(window.location.href);
+});
+
+const storeHighlight = function(
+  selection,
+  container,
+  url,
+  color,
+  userId,
+  cardId,
+  highlightId,
+  callback
+) {
   // console.log('storeHighlight called');
-  chrome.storage.local.get({ highlights: {} }, result => {
-    const highlights = result.highlights;
-    // console.log(highlights);
+  chrome.storage.local.get(['highlights'], result => {
+    let highlights = result.highlights;
+    if (!highlights) highlights = {};
+    // console.log('highlights', highlights);
     if (!highlights[url]) highlights[url] = {};
-    //
-    // highlights = { 'url': [ { string: '', container: ... }, {...}]}
     highlights[url][highlightId] = {
       string: selection.toString(),
       container: getQuery(container),
@@ -18,8 +37,31 @@ const storeHighlight = function(selection, container, url, color, highlightId, c
       focusNode: getQuery(selection.focusNode),
       focusOffset: selection.focusOffset,
       color: color,
+      user_id: userId,
+      card_id: cardId,
+      visibility: 'public',
+      editable_by: 'public',
+      edited: new Date().getTime(),
+      created: new Date().getTime(),
     };
-    console.log('highlights[url]', highlights[url]);
+    // console.log('highlights[url]', highlights[url]);
+    chrome.storage.local.set({ highlights });
+    if (callback) callback();
+  });
+};
+
+const storeCard = function(card, callback) {
+  const url = card.highlight_url;
+  chrome.storage.local.get({ highlights: {} }, result => {
+    let highlights = result.highlights;
+    if (!highlights) highlights = {};
+    // console.log(highlights);
+    if (!highlights[url]) highlights[url] = {};
+    // console.log(highlights[url]);
+
+    if (!highlights[url].cards) highlights[url].cards = [];
+    highlights[url].cards.push(card);
+    // console.log('card stored', highlights[url].cards);
     chrome.storage.local.set({ highlights });
     if (callback) callback();
   });
@@ -33,8 +75,9 @@ const loadAllHighlights = function(url) {
     // console.log(result.highlights);
     if (thisURLsHighlights !== undefined) {
       const highlightIds = Object.keys(thisURLsHighlights);
+      // console.log('highlightIds', highlightIds);
       for (const key of highlightIds) {
-        loadHighlight(thisURLsHighlights[key], key);
+        if (key !== 'cards') loadHighlight(thisURLsHighlights[key], key);
       }
     }
   });
@@ -43,6 +86,7 @@ const loadAllHighlights = function(url) {
 const loadHighlight = function(highlightVal, highlightId, noErrorTracking) {
   // noErrorTracking is optional
   // console.log('load highlight called');
+  // console.log('highlightVal', highlightVal);
   // console.log('anchor node', highlightVal.anchorNode);
   const selection = {
     anchorNode: elementFromQuery(highlightVal.anchorNode),
@@ -121,4 +165,4 @@ const clearPageHighlights = function(url) {
   });
 };
 
-export { loadHighlight, storeHighlight, clearPageHighlights, loadAllHighlights };
+export { loadHighlight, storeHighlight, storeCard, clearPageHighlights, loadAllHighlights };

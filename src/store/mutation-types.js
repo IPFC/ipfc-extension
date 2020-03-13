@@ -3,5 +3,5 @@ export const deleteJwt = 'deleteJwt';
 export const updateJwtValid = 'updateJwtValid';
 export const updatePinataKeys = 'updatePinataKeys';
 export const updateRunInNewWindow = 'updateRunInNewWindow';
-export const updateSelection = 'updateSelection';
+export const updateNewCardData = 'updateNewCardData';
 export const updateUserCollection = 'updateUserCollection';

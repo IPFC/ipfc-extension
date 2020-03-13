@@ -26,7 +26,7 @@ export default new Vuex.Store({
     // jwt: null,
     // jwtValid: false,
     // pinataKeys: null,
-    // selection: null,
+    // newCardData: null,
     // user_collection: null,
   },
   getters,

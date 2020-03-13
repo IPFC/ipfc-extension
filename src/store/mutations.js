@@ -31,9 +31,9 @@ export default {
     setStorageData({ runInNewWindow: data });
     state.runInNewWindow = data;
   },
-  [types.updateSelection](state, data) {
-    setStorageData({ selection: data });
-    state.selection = data;
+  [types.updateNewCardData](state, data) {
+    setStorageData({ newCardData: data });
+    state.newCardData = data;
   },
   [types.updateUserCollection](state, collection) {
     setStorageData({ user_collection: collection });

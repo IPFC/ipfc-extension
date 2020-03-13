@@ -45,7 +45,7 @@ export default {
         position: 'fixed',
         zIndex: 99999999,
       };
-      console.log(this.sidebarStyle);
+      // console.log(this.sidebarStyle);
     } else {
       this.windowSetting = 'in-other-window';
     }

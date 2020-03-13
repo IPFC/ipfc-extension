@@ -118,6 +118,7 @@ import { Quill, quillEditor } from 'vue-quill-editor';
 import 'quill/dist/quill.snow.css';
 import imageUpload from 'quill-plugin-image-upload';
 import defaultCollection from '../assets/defaultCollection.json';
+import { storeCard } from '../highlighter/background/storageManager.js';
 
 const uuidv4 = require('uuid/v4');
 const axios = require('axios');
@@ -262,6 +263,7 @@ export default {
           that.card !== initialData.card
         ) {
           // console.log('check loaded, true');
+          this.cancelled = false;
           that.loaded = true;
           // console.log('this.cancelled', that.cancelled);
           if (that.show) that.focusInputFront();
@@ -273,7 +275,7 @@ export default {
       port.onMessage.addListener(function(msg) {
         if (msg.startup) {
           const state = JSON.parse(JSON.stringify(msg.state));
-          // console.log('recieved state', state);
+          console.log('start-up recieved state', state);
           for (const stateItem in state) {
             if (stateItem === 'user_collection') {
               that.$store.commit('updateUserCollection', state[stateItem]);
@@ -291,14 +293,21 @@ export default {
                   .toUpperCase() + String(stateItem).slice(1);
               // console.log('state.stateItem', state[stateItem]);
               that.$store.commit('update' + Capitalized, state[stateItem]);
-              if (stateItem === 'selection') {
+              if (stateItem === 'newCardData') {
+                const data = state[stateItem];
+                // console.log('editor recieved newCardData', data);
                 that.card = {
                   card_tags: ['Daily Review'],
-                  front_text: state[stateItem],
+                  front_text: data.selection,
                   back_text: '',
-                  front_rich_text: state[stateItem],
+                  front_rich_text: data.selection,
                   back_rich_text: '',
+                  card_id: data.card_id,
+                  user_id: data.user_id,
+                  highlight_url: data.highlight_url,
+                  highlight_id: data.highlight_id,
                 };
+                // console.log('card set', that.card);
                 checkLoaded(that);
               }
               if (stateItem === 'pinataKeys') {
@@ -326,6 +335,7 @@ export default {
         if (port.name === 'background') {
           port.onMessage.addListener(function(msg) {
             if (msg.stateChanged) {
+              console.log('recieved stateChange', msg.stateItem);
               if (msg.stateItem === 'user_collection') {
                 that.$store.commt('updateUserCollection', msg.value);
               } else {
@@ -339,18 +349,6 @@ export default {
           });
         }
       });
-    },
-    newCard() {
-      return {
-        card_id: uuidv4(),
-        card_tags: ['Daily Review'],
-        front_text: '',
-        back_text: '',
-        front_rich_text: '',
-        back_rich_text: '',
-        created: new Date().getTime(),
-        edited: new Date().getTime(),
-      };
     },
     cancel() {
       this.cancelled = true;
@@ -397,7 +395,6 @@ export default {
       if (!this.unChanged) {
         this.submit(this.card);
       }
-      this.$router.go(-1);
     },
     getQuillData: function(cardInput, quill) {
       // copy image and plaintext
@@ -437,15 +434,10 @@ export default {
     },
     async submitStep2(cardInput, quill) {
       const card = await this.getQuillData(cardInput, quill);
-      let deckId = null;
-      if (this.currentDeck.title === 'Review Deck') {
-        deckId = this.findCardsDeck(card.card_id);
-      } else {
-        deckId = this.currentDeck.deck_id;
-      }
-      const updateData = { deck_id: deckId, card: card };
-      this.$store.dispatch('updateCard', updateData);
-      this.focusInputFront();
+      // deck_id needs to be resolved
+      storeCard(card);
+      this.cancelled = true;
+      this.show = false;
       return true;
     },
     // use later for dropdown menu, copy to other deck

@@ -1,5 +1,7 @@
 import store from './store';
+const throttle = require('lodash/throttle');
 global.browser = require('webextension-polyfill');
+// var $ = require('jquery');
 
 const setStore = function() {
   chrome.storage.local.get(
@@ -52,24 +54,50 @@ const storageListener = function(port) {
     }
   });
 };
-
+chrome.runtime.onConnect.addListener(function(port) {
+  if (port.name === 'editor' || port.name === 'popup') {
+    // not sure this works
+    var backgroundPort = chrome.runtime.connect({ name: 'background' });
+    storageListener(backgroundPort);
+    port.onMessage.addListener(function(msg) {
+      if (msg.startup) {
+        throttle(function() {
+          port.postMessage({ startup: true, state: store.state });
+        }, 200);
+      }
+    });
+  }
+});
 setStore();
 
-document.addEventListener(
-  'DOMContentLoaded',
-  function() {
-    checkJwt();
-    var port = chrome.runtime.connect({ name: 'background' });
-    storageListener(port);
-  },
-  false
-);
-const checkJwt = function() {
+const onPageLoad = function() {
+  checkJwt();
+};
+chrome.runtime.onMessage.addListener(function(msg) {
+  if (msg.pageLoaded) {
+    onPageLoad();
+  }
+});
+
+// this is needed for single page applications which don't reload on url change
+chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
+  if (changeInfo.url) {
+    console.log('tab url changed');
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      // console.log('show editor message sent');
+      chrome.tabs.sendMessage(tabs[0].id, { refresh: true });
+    });
+  }
+});
+
+const checkJwt = throttle(function() {
+  console.log('checkjwt');
   chrome.storage.local.get(['jwt'], function(result) {
     store.commit('updateJwt', result.jwt);
     store.dispatch('checkJwt');
   });
-};
+}, 5000);
+
 chrome.contextMenus.create({
   id: 'makeFlashCard',
   title: 'Make Flashcard',
@@ -77,18 +105,10 @@ chrome.contextMenus.create({
   contexts: ['selection'],
 });
 
-chrome.runtime.onConnect.addListener(function(port) {
-  if (port.name === 'editor' || port.name === 'popup') {
-    port.onMessage.addListener(function(msg) {
-      if (msg.startup) port.postMessage({ startup: true, state: store.state });
-    });
-  }
-});
-
 chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.highlightSelection) {
-    // console.log(msg.selection);
-    store.commit('updateSelection', msg.selection);
+    // console.log('recieved new card data', msg.newCardData);
+    store.commit('updateNewCardData', msg.newCardData);
     showEditor();
   }
 });

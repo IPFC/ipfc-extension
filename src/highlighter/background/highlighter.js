@@ -1,10 +1,9 @@
 var $ = require('jquery');
 
-$(document).click(function(event) {
-  var target = $(event.target);
-  console.log(target);
-  console.log(target[0].id);
-});
+// $(document).click(function(event) {
+//   var target = $(event.target);
+//   console.log(target[0].id);
+// });
 
 // Pick a combination of characters that should (almost) never occur
 var DELIMITERS = {
@@ -14,7 +13,7 @@ var DELIMITERS = {
 
 var HIGHLIGHT_CLASS = 'highlighter--highlighted';
 function getReplacements(color, highlightId) {
-  console.log('get replacements. id', highlightId);
+  // console.log('get replacements. id', highlightId);
   return {
     // removed style="background-color: ' + color + ';
     start: `<span id="${highlightId}" class="${HIGHLIGHT_CLASS}">`,
@@ -49,8 +48,7 @@ function resetVars() {
 const highlight = function(selString, container, selection, color, highlightId) {
   resetVars();
   // console.log('highlight called');
-  // console.log(selString, container, selection, color);
-  console.log(highlightId);
+  // console.log(selString, container, selection, color, highlightId);
   selectionString = selString;
   selectionLength = selectionString.length;
 

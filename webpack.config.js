@@ -7,6 +7,8 @@ const { VueLoaderPlugin } = require('vue-loader');
 const { version } = require('./package.json');
 
 const config = {
+  // in response to unsafe eval error https://stackoverflow.com/questions/48047150/refused-to-evaluate-a-string-as-javascript-because-unsafe-eval-is-not-an-allow
+  devtool: 'cheap-module-source-map',
   mode: process.env.NODE_ENV,
   context: __dirname + '/src',
   entry: {
