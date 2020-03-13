@@ -16,88 +16,65 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
 import login from '../components/Login.vue';
 export default {
   components: { login },
   data() {
     return {
       loggedIn: false,
-      runInThisWindow: false,
       runInNewWindow: false,
+      jwt: null,
     };
   },
-  computed: {
-    ...mapState(['jwt', 'jwtValid']),
+  created() {},
+  mounted() {
+    console.log(this.checkJwt());
+    this.checkJwt().then(value => {
+      console.log(value);
+      if (value) this.loggedIn = true;
+      else this.loggedIn = false;
+    });
   },
-  created() {
-    this.startUpStoreSync('popup');
-  },
-  mounted() {},
   methods: {
-    startUpStoreSync(name) {
-      const that = this;
-      var port = chrome.runtime.connect({ name: name });
-      port.postMessage({ startup: true });
-      port.onMessage.addListener(function(msg) {
-        if (msg.startup) {
-          const state = JSON.parse(JSON.stringify(msg.state));
-          // console.log(state);
-          for (const stateItem in state) {
-            if (stateItem === 'user_collection') {
-              that.$store.commit('updateUserCollection', state[stateItem]);
-            } else if (stateItem !== 'jwtValid') {
-              const Capitalized =
-                String(stateItem)
-                  .charAt(0)
-                  .toUpperCase() + String(stateItem).slice(1);
-              // console.log('state.stateItem', state[stateItem]);
-              that.$store.commit('update' + Capitalized, state[stateItem]);
-              if (stateItem === 'jwt') {
-                that.checkJwt();
-              }
-            }
-          }
-        }
-      });
-      this.storeChangeListener();
-    },
-    storeChangeListener() {
-      const that = this;
-      chrome.runtime.onConnect.addListener(function(port) {
-        if (port.name === 'background') {
-          port.onMessage.addListener(function(msg) {
-            if (msg.stateChanged) {
-              if (msg.stateItem === 'user_collection') {
-                that.$store.commt('updateUserCollection', msg.value);
-              } else {
-                const Capitalized =
-                  String(msg.stateItem)
-                    .charAt(0)
-                    .toUpperCase() + String(msg.stateItem).slice(1);
-                that.$store.commit('update' + Capitalized, msg.value);
-              }
-            }
+    async checkJwt() {
+      const getJwt = function() {
+        return new Promise(resolve => {
+          chrome.storage.local.get(['jwt'], function(items) {
+            resolve(items.jwt);
           });
+        });
+      };
+      const jwt = await getJwt();
+      console.log('jwt', jwt);
+      if (jwt === null) {
+        return false;
+      } else if (!jwt || jwt.split('.').length < 3) {
+        return false;
+      } else {
+        const data = JSON.parse(atob(jwt.split('.')[1]));
+        const exp = new Date(data.exp * 1000); // JS deals with dates in milliseconds since epoch, python in seconds
+        const now = new Date();
+        if (now < exp) {
+          return true;
         }
-      });
+      }
     },
     setLoggedIn() {
       // console.log('setLoggedIn');
       this.loggedIn = true;
     },
     logout() {
-      this.$store.dispatch('logout');
+      chrome.storage.local.set({ jwt: null, user_collection: null, highlights: null });
       window.close();
     },
     openInThisWindow() {
+      chrome.storage.local.set({ updateRunInNewWindow: false });
       chrome.tabs.executeScript({
         file: 'sidebar/sidebar.js',
       });
-      this.$store.commit('updateRunInNewWindow', false);
     },
     openSidebarWindow() {
-      this.$store.commit('updateRunInNewWindow', true);
+      chrome.storage.local.set({ updateRunInNewWindow: true });
       chrome.windows.getCurrent(function(win) {
         const sidebar = {
           type: 'popup',
@@ -126,12 +103,6 @@ export default {
         chrome.windows.update(win.id, { width: updatedWinWidth, left: updatedWinLeft });
         chrome.windows.create(sidebar);
       });
-    },
-    async checkJwt() {
-      await this.$store.dispatch('checkJwt');
-      if (this.$store.state.jwtValid) {
-        this.loggedIn = true;
-      }
     },
   },
 };

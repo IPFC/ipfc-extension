@@ -243,9 +243,6 @@ export default {
     },
   },
   methods: {
-    log(...message) {
-      chrome.extension.getBackgroundPage().console.log(String(message));
-    },
     async callAPI(url, headers, method, data = null, callback = null) {
       const that = this;
       const options = {
@@ -286,9 +283,8 @@ export default {
           that.failedLogin = true;
           that.apiErrorMsg = data.error;
         } else {
-          that.$store.commit('updateJwt', data.token);
-          that.$store.dispatch('checkJwt');
-          that.$store.commit('updatePinataKeys', data.pinata_keys);
+          chrome.storage.local.set({ jwt: data.token });
+          chrome.storage.local.set({ pinata_keys: data.pinata_keys });
           that.getMeta(data.token, data.pinata_keys, that);
         }
         that.loggingIn = false;
@@ -302,7 +298,7 @@ export default {
       };
       const getMetaURL = that.serverURL + '/get_meta_and_collection';
       const getMetaCallback = function(data) {
-        that.$store.commit('updateUserCollection', data.user_collection);
+        chrome.storage.local.set({ user_collection: data.user_collection });
         that.$emit('loginSuccess');
       };
       this.callAPI(getMetaURL, getMetaHeaders, 'GET', null, getMetaCallback);
@@ -343,9 +339,6 @@ export default {
       this.dismissCountDown = this.dismissSecs;
     },
   },
-  //   mounted() {
-  //     this.$emit('homeLoad');
-  //   },
 };
 </script>
 

@@ -24,7 +24,6 @@ export default new Vuex.Store({
   state: {
     // runInNewWindow: false,
     // jwt: null,
-    // jwtValid: false,
     // pinataKeys: null,
     // newCardData: null,
     // user_collection: null,

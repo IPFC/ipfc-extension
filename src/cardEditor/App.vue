@@ -1,5 +1,5 @@
 <template>
-  <div id="app-main">
+  <div ref="editor-main">
     <div v-if="show" id="card-editor-body" class="scroller">
       <b-container v-if="loaded && !cancelled" fluid>
         <b-row id="main-row">
@@ -113,7 +113,6 @@
 <script>
 /* eslint-disable vue/valid-v-on */
 import { BFormInput } from 'bootstrap-vue';
-import { mapState } from 'vuex';
 import { Quill, quillEditor } from 'vue-quill-editor';
 import 'quill/dist/quill.snow.css';
 import imageUpload from 'quill-plugin-image-upload';
@@ -129,7 +128,8 @@ var quillKeyBindings = {
     key: 'ENTER',
     shiftKey: true,
     handler: function() {
-      document.querySelector('#app-main > div.router-view').__vue__.editorShiftEnter();
+      // find again
+      document.querySelector('body > div:nth-child(1)').__vue__.editorShiftEnter();
     },
   },
 };
@@ -158,7 +158,6 @@ export default {
         back_rich_text: '',
       },
       user_collection: defaultCollection.user_collection,
-      jwt: 'jwt',
       pinataKeys: {
         pinata_api: '',
         pinata_key: '',
@@ -213,7 +212,6 @@ export default {
     };
   },
   computed: {
-    ...mapState({}),
     unincludedTags() {
       // this now rides on review deck in getters
       const allTagsList = this.user_collection.all_card_tags;
@@ -238,6 +236,7 @@ export default {
   watch: {},
   created() {
     this.loaded = false;
+    this.cancelled = false;
   },
   mounted() {
     // console.log('adding listener');
@@ -246,108 +245,41 @@ export default {
       // console.log('msg', msg);
       if (msg.showEditor) {
         // console.log('showEditor recieved');
-        that.startUpStoreSync('editor');
+        that.loadStorage();
         that.show = true;
+        that.cancelled = false;
+        that.card.front_rich_text = msg.selectedText;
+        that.card.front_text = msg.selectedText;
       }
     });
   },
   methods: {
-    startUpStoreSync(name) {
-      const initialData = {
-        user_collection: this.user_collection,
-        card: this.card,
+    setCard(newCardData) {
+      this.card = {
+        card_tags: ['Daily Review'],
+        front_text: newCardData.selection,
+        back_text: '',
+        front_rich_text: newCardData.selection,
+        back_rich_text: '',
+        card_id: newCardData.card_id,
+        user_id: newCardData.user_id,
+        highlight_url: newCardData.highlight_url,
+        highlight_id: newCardData.highlight_id,
       };
-      const checkLoaded = function(that) {
-        if (
-          that.user_collection !== initialData.user_collection &&
-          that.card !== initialData.card
-        ) {
-          // console.log('check loaded, true');
-          this.cancelled = false;
-          that.loaded = true;
-          // console.log('this.cancelled', that.cancelled);
-          if (that.show) that.focusInputFront();
-        }
-      };
-      const that = this;
-      var port = chrome.runtime.connect({ name: name });
-      port.postMessage({ startup: true });
-      port.onMessage.addListener(function(msg) {
-        if (msg.startup) {
-          const state = JSON.parse(JSON.stringify(msg.state));
-          console.log('start-up recieved state', state);
-          for (const stateItem in state) {
-            if (stateItem === 'user_collection') {
-              that.$store.commit('updateUserCollection', state[stateItem]);
-              that.user_collection = state[stateItem];
-              // console.log('user_collection', state[stateItem]);
-              that.editorOption.modules.toolbar =
-                state[stateItem].webapp_settings.text_editor.options.toolbar;
-              checkLoaded(that);
-              // remove later
-              that.user_collection.all_cards_tags = [];
-            } else if (stateItem !== 'jwtValid') {
-              const Capitalized =
-                String(stateItem)
-                  .charAt(0)
-                  .toUpperCase() + String(stateItem).slice(1);
-              // console.log('state.stateItem', state[stateItem]);
-              that.$store.commit('update' + Capitalized, state[stateItem]);
-              if (stateItem === 'newCardData') {
-                const data = state[stateItem];
-                // console.log('editor recieved newCardData', data);
-                that.card = {
-                  card_tags: ['Daily Review'],
-                  front_text: data.selection,
-                  back_text: '',
-                  front_rich_text: data.selection,
-                  back_rich_text: '',
-                  card_id: data.card_id,
-                  user_id: data.user_id,
-                  highlight_url: data.highlight_url,
-                  highlight_id: data.highlight_id,
-                };
-                // console.log('card set', that.card);
-                checkLoaded(that);
-              }
-              if (stateItem === 'pinataKeys') {
-                that.pinataKeys = state[stateItem];
-              }
-              if (stateItem === 'jwt') {
-                that.jwt = state[stateItem];
-                that.checkJwt();
-              }
-            }
-          }
-        }
-      });
-      port.onMessage.addListener(function(msg) {
-        if (msg.showEditor) {
-          that.show = true;
-          that.startUpStoreSync();
-        }
-      });
-      this.storeChangeListener();
     },
-    storeChangeListener() {
+    loadStorage() {
       const that = this;
-      chrome.runtime.onConnect.addListener(function(port) {
-        if (port.name === 'background') {
-          port.onMessage.addListener(function(msg) {
-            if (msg.stateChanged) {
-              console.log('recieved stateChange', msg.stateItem);
-              if (msg.stateItem === 'user_collection') {
-                that.$store.commt('updateUserCollection', msg.value);
-              } else {
-                const Capitalized =
-                  String(msg.stateItem)
-                    .charAt(0)
-                    .toUpperCase() + String(msg.stateItem).slice(1);
-                that.$store.commit('update' + Capitalized, msg.value);
-              }
-            }
-          });
+      chrome.storage.local.get(['user_collection', 'pinata_keys', 'newCardData'], function(items) {
+        if (!items.user_collection) {
+          that.show = false;
+          that.cancelled = true;
+          return null;
         }
+        that.user_collection = items.user_collection;
+        that.editorOption.modules.toolbar =
+          items.user_collection.webapp_settings.text_editor.options.toolbar;
+        that.setCard(items.newCardData);
+        that.loaded = true;
       });
     },
     cancel() {
@@ -513,23 +445,13 @@ export default {
         this.toggleAddingTag();
       }
     },
-    async checkJwt() {
-      await this.$store.dispatch('checkJwt');
-      if (this.$store.state.jwtValid) {
-        this.loggedIn = true;
-      }
-    },
   },
 };
 </script>
 
 <style scoped lang="scss">
-#app-main {
-  z-index: 9999999999;
-}
 #card-editor-body {
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.51);
-
   left: 0px;
   top: 0px;
   z-index: 99999999;

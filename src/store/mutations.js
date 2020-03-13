@@ -17,12 +17,6 @@ export default {
     setStorageData({ jwt: null });
     state.jwt = null;
   },
-  [types.updateJwtValid](state, bool) {
-    // console.log('store jwt update valid');
-    // console.log(bool);
-    setStorageData({ jwtValid: bool });
-    state.jwtValid = bool;
-  },
   [types.updatePinataKeys](state, data) {
     setStorageData({ pinataKeys: data });
     state.pinataKeys = data;

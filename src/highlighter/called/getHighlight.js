@@ -15,11 +15,11 @@ if (selectionString) {
     container = container.parentNode;
   }
 
-  chrome.storage.local.get(['color', 'user_collection', 'jwtValid'], result => {
-    console.log(result.user_collection, result.jwtValid);
-    if (!result.user_collection) alert('please log in');
-    const userId = result.user_collection.user_id;
-    const color = result.color;
+  chrome.storage.local.get(['color', 'user_collection'], items => {
+    console.log(items.user_collection);
+    if (!items.user_collection) alert('please log in');
+    const userId = items.user_collection.user_id;
+    const color = items.color;
     const highlightId = uuidv4();
     const cardId = uuidv4();
     // these are things to be saved in the new card, so they need to be sent to the editor

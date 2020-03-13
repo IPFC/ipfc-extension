@@ -13,15 +13,17 @@ export default {
     return {
       windowSetting: '',
       sidebarStyle: {},
+      runInNewWindow: false,
     };
   },
   computed: {
     ...mapState(['runInNewWindow']),
   },
-  methods: {
-    log(...message) {
-      chrome.extension.getBackgroundPage().console.log(String(message));
-    },
+  created() {
+    const that = this;
+    chrome.storage.local.get(['runInNewWindow'], function(items) {
+      that.runInNewWindow = items.runInNewWindow;
+    });
   },
   mounted() {
     if (!this.runInNewWindow) {
@@ -49,6 +51,31 @@ export default {
     } else {
       this.windowSetting = 'in-other-window';
     }
+  },
+  methods: {
+    async checkJwt() {
+      const getJwt = function() {
+        return new Promise(resolve => {
+          chrome.storage.local.get(['jwt'], function(items) {
+            resolve(items.jwt);
+          });
+        });
+      };
+      const jwt = await getJwt();
+      console.log('jwt', jwt);
+      if (jwt === null) {
+        return false;
+      } else if (!jwt || jwt.split('.').length < 3) {
+        return false;
+      } else {
+        const data = JSON.parse(atob(jwt.split('.')[1]));
+        const exp = new Date(data.exp * 1000); // JS deals with dates in milliseconds since epoch, python in seconds
+        const now = new Date();
+        if (now < exp) {
+          return true;
+        }
+      }
+    },
   },
 };
 </script>

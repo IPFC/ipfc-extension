@@ -24,8 +24,8 @@ const storeHighlight = function(
   callback
 ) {
   // console.log('storeHighlight called');
-  chrome.storage.local.get(['highlights'], result => {
-    let highlights = result.highlights;
+  chrome.storage.local.get(['highlights'], items => {
+    let highlights = items.highlights;
     if (!highlights) highlights = {};
     // console.log('highlights', highlights);
     if (!highlights[url]) highlights[url] = {};
@@ -52,8 +52,8 @@ const storeHighlight = function(
 
 const storeCard = function(card, callback) {
   const url = card.highlight_url;
-  chrome.storage.local.get({ highlights: {} }, result => {
-    let highlights = result.highlights;
+  chrome.storage.local.get({ highlights: {} }, items => {
+    let highlights = items.highlights;
     if (!highlights) highlights = {};
     // console.log(highlights);
     if (!highlights[url]) highlights[url] = {};
@@ -69,10 +69,10 @@ const storeCard = function(card, callback) {
 
 const loadAllHighlights = function(url) {
   // console.log('loadAllHighlights');
-  chrome.storage.local.get({ highlights: {} }, function(result) {
-    // console.log('load highlights result');
-    const thisURLsHighlights = result.highlights[url];
-    // console.log(result.highlights);
+  chrome.storage.local.get({ highlights: {} }, function(items) {
+    // console.log('load highlights items');
+    const thisURLsHighlights = items.highlights[url];
+    // console.log(items.highlights);
     if (thisURLsHighlights !== undefined) {
       const highlightIds = Object.keys(thisURLsHighlights);
       // console.log('highlightIds', highlightIds);
@@ -115,12 +115,12 @@ const loadHighlight = function(highlightVal, highlightId, noErrorTracking) {
 function elementFromQuery(storedQuery) {
   // console.log('stored query', storedQuery);
   const re = />textNode:nth-of-type\(([0-9]+)\)$/i;
-  const result = re.exec(storedQuery);
-  // console.log('stored querey regex result', result);
+  const items = re.exec(storedQuery);
+  // console.log('stored querey regex items', items);
   // console.log('$(storedQuery)[0]', $(storedQuery)[0]);
-  if (result) {
+  if (items) {
     // For text nodes, nth-of-type needs to be handled differently (not a valid CSS selector)
-    const textNodeIndex = parseInt(result[1]);
+    const textNodeIndex = parseInt(items[1]);
     // console.log('textNodeIndex', textNodeIndex);
     const storedQuery2 = storedQuery.replace(re, '');
     // console.log('storedQuery, replaced', storedQuery2);
@@ -158,8 +158,8 @@ function escapeCSSString(cssString) {
 }
 
 const clearPageHighlights = function(url) {
-  chrome.storage.local.get({ highlights: {} }, result => {
-    const highlights = result.highlights;
+  chrome.storage.local.get({ highlights: {} }, items => {
+    const highlights = items.highlights;
     delete highlights[url];
     chrome.storage.local.set({ highlights });
   });
