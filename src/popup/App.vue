@@ -27,7 +27,11 @@ export default {
       jwt: null,
     };
   },
-  created() {},
+  created() {
+    chrome.windows.getCurrent(function(win) {
+      chrome.runtime.sendMessage({ popupWinId: win.id });
+    });
+  },
   mounted() {
     // console.log(this.checkJwt());
     this.checkJwt().then(value => {
@@ -69,14 +73,16 @@ export default {
       window.close();
     },
     openInThisWindow() {
-      chrome.storage.local.set({ updateRunInNewWindow: false });
+      chrome.storage.local.set({ runInNewWindow: false });
       chrome.tabs.executeScript({
         file: 'sidebar/sidebar.js',
       });
+      window.close();
     },
     openSidebarWindow() {
-      chrome.storage.local.set({ updateRunInNewWindow: true });
+      chrome.storage.local.set({ runInNewWindow: true });
       createSidebar();
+      window.close();
     },
   },
 };

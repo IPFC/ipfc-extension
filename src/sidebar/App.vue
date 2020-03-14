@@ -1,25 +1,20 @@
 <template>
   <div id="sidebar-content-body" :class="windowSetting" :style="sidebarStyle">
-    <b-container v-if="loaded" class="deck-editor-main">
+    <b-container v-if="loaded" class="sidebar-content-main">
       <b-row id="main-row">
         <b-col id="main-col">
           <b-row id="title-row">
             <b-col id="icon-col" cols="2" class="align-self-center">
               <div id="icon" :style="{ backgroundColor: deck.icon_color }">
                 <p id="deck-abrev">
-                  <strong>Saved Cards</strong>
+                  <strong>{{ getTitleAbrev(deck.title) }}</strong>
                 </p>
               </div>
             </b-col>
             <b-col id="text-col">
-              <p v-if="!editingDeckTitle" class="text title" @click="toggleEditDeckTitle()">
+              <p class="text title">
                 {{ deck.title }}
               </p>
-              <b-form-input
-                v-if="editingDeckTitle"
-                v-model="newDeckTitle"
-                @keyup.enter="commitDeckTitle()"
-              ></b-form-input>
               <p class="text card-count">
                 {{ deck.cards.length }} card{{ cardOrCards(deck.cards.length) }}
               </p>
@@ -68,10 +63,10 @@
 </template>
 
 <script>
-import { BCard, BImgLazy, BFormInput, BCardText } from 'bootstrap-vue';
-
+import { BCard, BImgLazy, BCardText } from 'bootstrap-vue';
+// import throttle from 'lodash/throttle';
 export default {
-  components: { BCard, BImgLazy, BFormInput, BCardText },
+  components: { BCard, BImgLazy, BCardText },
   data() {
     return {
       windowSetting: '',
@@ -86,6 +81,16 @@ export default {
   computed: {},
   created() {
     const that = this;
+    chrome.windows.getCurrent(function(win) {
+      chrome.runtime.sendMessage({ sidebarWinId: win.id });
+      that.sidebarWinId = win.id;
+    });
+    chrome.runtime.onMessage.addListener(function(msg) {
+      if (msg.sidebarResize) {
+        const updateData = msg.updateData;
+        that.resizeInNewWindow(that.sidebarWinId, updateData);
+      }
+    });
     chrome.storage.local.get(['runInNewWindow', 'user_collection', 'jwt', 'highlights'], function(
       items
     ) {
@@ -93,7 +98,7 @@ export default {
       that.user_collection = items.user_collection;
       that.jwt = items.jwt;
       const deck = {
-        title: 'My Highlighted Cards',
+        title: 'Cards',
         icon_color: 'blue',
         cards: [],
       };
@@ -107,18 +112,18 @@ export default {
       that.deck = deck;
       that.loaded = true;
     });
-    window.addEventListener('resize', function() {
-      console.log('resize detected');
-      if (!that.runInNewWindow) that.resizeInThisWindow();
-    });
   },
   mounted() {
-    if (!this.runInNewWindow) {
-      this.resizeInThisWindow();
-      // console.log(this.sidebarStyle);
-    } else {
-      this.windowSetting = 'in-other-window';
-    }
+    const that = this;
+    chrome.storage.local.get(['runInNewWindow'], function(items) {
+      if (!items.runInNewWindow) {
+        console.log('running in this window');
+        that.resizeInThisWindow();
+      } else {
+        console.log('running in new window');
+        that.windowSetting = 'in-other-window';
+      }
+    });
   },
   methods: {
     refreshDeck() {
@@ -154,6 +159,27 @@ export default {
         }
         return abrev;
       }
+    },
+    resizeInNewWindow(winId, updateData) {
+      // if was on the left originally
+      updateData.width = Math.round((updateData.mainWinWidth + window.outerWidth) * 0.25);
+      if (updateData.width > 450) {
+        updateData.width = 450;
+      } else if (updateData.width < 250) {
+        updateData.width = 250;
+      }
+      console.log('update.width', updateData.width);
+      if (window.screenLeft <= updateData.mainWinLeft) {
+        updateData.left = updateData.mainWinLeft - updateData.width;
+      } else {
+        updateData.left = updateData.mainWinLeft + updateData.mainWinWidth;
+      }
+      chrome.windows.update(winId, {
+        height: updateData.height,
+        width: updateData.width,
+        top: updateData.top,
+        left: updateData.left,
+      });
     },
     resizeInThisWindow() {
       this.windowSetting = 'in-this-window';
@@ -206,17 +232,23 @@ export default {
 
 <style scoped>
 #sidebar-content-body {
+  position: fixed;
+  width: 100%;
   height: 100%;
-  background-color: rgb(232, 232, 232);
+  background-color: #f6f6f6;
   overflow-y: auto;
+  padding: 10px 0px 0px 0px;
 }
-.in-new-window {
+.in-other-window {
 }
 .in-this-window {
 }
 #card {
   margin: 10px 10px;
   box-shadow: 0px 0px 15px 5px rgba(0, 0, 0, 0.1);
+}
+#card .card-body {
+  padding: 8px 20px 8px 10px;
 }
 .card-content-col {
   max-height: 5em;
@@ -237,15 +269,15 @@ export default {
   cursor: pointer;
   color: black;
 }
-.deck-editor-main {
+.sidebar-content-main {
   overflow-y: auto;
+  padding: 0;
 }
-.deck-editor-main::-webkit-scrollbar {
+.idebar-content-main::-webkit-scrollbar {
   width: 0em;
 }
 #main-row {
-  margin: 15px 15px 0px 10px;
-  margin-top: 15px;
+  margin: 0;
 }
 #main-col {
   margin: auto;

@@ -12,7 +12,7 @@ import {
   faPlusCircle,
   // faStepForward,
   // faStepBackward,
-  // faEdit,
+  faEdit,
   // faUndo,
   faTrashAlt,
   // faSearch,
@@ -36,7 +36,7 @@ library.add(
   faPlusCircle,
   // faStepForward,
   // faStepBackward,
-  // faEdit,
+  faEdit,
   // faUndo,
   faTrashAlt,
   // faSearch,
@@ -61,8 +61,8 @@ global.browser = require('webextension-polyfill');
 Vue.prototype.$browser = global.browser;
 
 // need this for creating app when filling in a content_script
-chrome.storage.local.get(['updateRunInNewWindow'], function(items) {
-  if (!items.updateRunInNewWindow) {
+chrome.storage.local.get(['runInNewWindow'], function(items) {
+  if (!items.runInNewWindow) {
     const app = document.createElement('div');
     app.id = 'app';
     document.body.prepend(app);

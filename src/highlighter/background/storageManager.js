@@ -1,5 +1,5 @@
 import { addHighlightError } from './errorManager.js';
-import { highlight } from './highlighter.js';
+import { highlight, leftContextMenu } from './highlighter.js';
 var $ = require('jquery');
 // consider not storing color
 
@@ -105,6 +105,7 @@ const loadHighlight = function(highlightVal, highlightId, noErrorTracking) {
     return false;
   } else {
     const success = highlight(selectionString, container, selection, color, highlightId);
+    leftContextMenu();
     if (!noErrorTracking && !success) {
       addHighlightError(highlightVal);
     }
@@ -165,4 +166,21 @@ const clearPageHighlights = function(url) {
   });
 };
 
-export { loadHighlight, storeHighlight, storeCard, clearPageHighlights, loadAllHighlights };
+const deleteHighlight = function(url, id) {
+  chrome.storage.local.get({ highlights: {} }, items => {
+    const highlights = items.highlights;
+    console.log('delete highlights[url][id];', highlights[url][id]);
+    delete highlights[url][id];
+    chrome.storage.local.set({ highlights });
+    window.location.reload();
+  });
+};
+
+export {
+  loadAllHighlights,
+  loadHighlight,
+  storeHighlight,
+  storeCard,
+  clearPageHighlights,
+  deleteHighlight,
+};

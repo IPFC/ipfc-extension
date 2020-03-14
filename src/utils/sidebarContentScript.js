@@ -1,14 +1,35 @@
-var windowWidth = window.innerWidth;
-var windowHeight = window.innerHeight;
+// var windowWidth = window.innerWidth;
+// var windowHeight = window.innerHeight;
 
 const resize = function() {
-  windowWidth = window.innerWidth;
-  windowHeight = window.innerHeight;
-  console.log(windowHeight);
-  console.log(windowWidth);
+  console.log('resize called');
+  const updateData = {
+    mainWinLeft: window.screenLeft,
+    mainWinWidth: window.outerWidth,
+  };
+  updateData.height = window.outerHeight;
+  updateData.top = window.screenTop;
+  // check in sidebar if bar had been on the right or left, the determine top and left
+  chrome.runtime.sendMessage({ sidebarResize: true, updateData: updateData });
 };
-// TO DO
-window.addEventListener('resize', resize());
+
+var oldX = window.screenX;
+var oldY = window.screenY;
+var oldWidth = window.outerWidth;
+
+// https://stackoverflow.com/questions/4319487/detecting-if-the-browser-window-is-moved-with-javascript
+setInterval(function() {
+  if (oldX !== window.screenX || oldY !== window.screenY || oldWidth !== window.outerWidth) {
+    resize();
+  }
+  oldX = window.screenX;
+  oldY = window.screenY;
+  oldWidth = window.outerWidth;
+}, 500);
+
+// window.addEventListener('resize', function() {
+//   resize();
+// });
 
 const createSidebar = function() {
   chrome.windows.getCurrent(function(win) {
@@ -29,7 +50,7 @@ const createSidebar = function() {
     if (updatedWinWidth < 500) {
       updatedWinWidth = 500;
     }
-    // if it won't fit on the left, put it on the right
+    // if it won't fit on the right, put it on the left
     if (win.left + updatedWinWidth + sidebar.width > window.screen.availWidth) {
       updatedWinLeft += win.width - updatedWinWidth;
       sidebar.left = updatedWinLeft - sidebar.width;

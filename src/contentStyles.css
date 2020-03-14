@@ -1,8 +1,26 @@
 .highlighter--highlighted:hover {
   cursor: pointer;
-  background-color: #F8690D;
+  background-color: #f8690d;
 }
 
 .highlighter--highlighted {
   background-color: rgba(248, 103, 13, 0.5);
+}
+#left-context-ul {
+  list-style-type: none;
+  z-index: 9999999999;
+  background-color: #f6f6f6;
+  padding: 0;
+  margin: 0;
+}
+.left-context-li {
+  padding: 5px;
+  margin: 0;
+  border-width: 1px;
+  border-style: solid;
+  border-color: black;
+}
+.left-context-li:hover {
+  background-color: #acacac;
+  cursor: pointer;
 }

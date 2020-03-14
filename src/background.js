@@ -1,5 +1,5 @@
 // import store from './store';
-// const throttle = require('lodash/throttle');
+const throttle = require('lodash/throttle');
 global.browser = require('webextension-polyfill');
 // var $ = require('jquery');
 
@@ -23,6 +23,27 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 //     onPageLoad();
 //   }
 // });
+
+const sidebarResize = function(msg) {
+  chrome.storage.local.get(['sidebarWinId'], function(items) {
+    chrome.tabs.sendMessage(items.sidebarWinId, {
+      sidebarResize: true,
+      updateData: msg.sidebarResize,
+    });
+  });
+};
+
+chrome.runtime.onMessage.addListener(function(msg) {
+  if (msg.popupWinId) {
+    chrome.storage.local.set({ popupWinId: msg.popupWinId });
+  }
+  if (msg.sidebarWinId) {
+    chrome.storage.local.set({ sidebarWinId: msg.sidebarWinId });
+  }
+  if (msg.sidebarResize) {
+    sidebarResize(msg);
+  }
+});
 
 function checkJwt() {
   const getJwt = function() {

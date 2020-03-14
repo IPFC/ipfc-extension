@@ -1,9 +1,5 @@
+import { deleteHighlight } from './storageManager';
 var $ = require('jquery');
-
-// $(document).click(function(event) {
-//   var target = $(event.target);
-//   console.log(target[0].id);
-// });
 
 // Pick a combination of characters that should (almost) never occur
 var DELIMITERS = {
@@ -12,6 +8,36 @@ var DELIMITERS = {
 };
 
 var HIGHLIGHT_CLASS = 'highlighter--highlighted';
+
+var leftContextMenuHtml = `<ul id="left-context-ul">
+  <li class="left-context-li" id="delete-highlight">delete highlight</li>
+  <li class="left-context-li" id="collect-highlight">collect highlight</li>
+</ul>
+`;
+
+const leftContextMenu = function() {
+  $('.' + HIGHLIGHT_CLASS).click(function(e) {
+    const target = $(e.target);
+    const id = target[0].id;
+    const offsetTop = target[0].offsetTop;
+    const offsetHeight = target[0].offsetHeight;
+    const offsetLeft = target[0].offsetLeft;
+    console.log(target, id, offsetTop);
+    const leftContextMenu = document.createElement('div');
+    leftContextMenu.id = 'left-context-menu';
+    document.body.append(leftContextMenu);
+    $('#left-context-menu').html(leftContextMenuHtml);
+    $('#left-context-menu').css({
+      position: 'absolute',
+      top: offsetTop - offsetHeight,
+      left: offsetLeft,
+    });
+    $('#delete-highlight').click(function(e) {
+      deleteHighlight(window.location.href, id);
+    });
+  });
+};
+
 function getReplacements(color, highlightId) {
   // console.log('get replacements. id', highlightId);
   return {
@@ -179,4 +205,4 @@ function escapeRegex(text) {
   return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }
 
-export { highlight };
+export { highlight, leftContextMenu };

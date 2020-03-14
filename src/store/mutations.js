@@ -21,10 +21,10 @@ export default {
     setStorageData({ pinataKeys: data });
     state.pinataKeys = data;
   },
-  [types.updateRunInNewWindow](state, data) {
-    setStorageData({ runInNewWindow: data });
-    state.runInNewWindow = data;
-  },
+  // [types.updateRunInNewWindow](state, data) {
+  //   setStorageData({ runInNewWindow: data });
+  //   state.runInNewWindow = data;
+  // },
   [types.updateNewCardData](state, data) {
     setStorageData({ newCardData: data });
     state.newCardData = data;
