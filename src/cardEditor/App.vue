@@ -1,6 +1,6 @@
 <template>
   <div ref="editor-main">
-    <div v-if="show" id="card-editor-body" class="scroller">
+    <div id="card-editor-body" class="scroller">
       <b-container v-if="loaded && !cancelled" fluid>
         <b-row id="main-row">
           <b-col id="main-col">
@@ -141,7 +141,6 @@ export default {
     return {
       loaded: false,
       cancelled: false,
-      show: false,
       frontFocused: true,
       backFocused: false,
       frontFocusClass: '',
@@ -235,23 +234,23 @@ export default {
   },
   watch: {},
   created() {
-    this.loaded = false;
-    this.cancelled = false;
+    const that = this;
+    chrome.windows.getCurrent(function(win) {
+      chrome.runtime.sendMessage({ editorWinId: win.id });
+      that.editorWinId = win.id;
+    });
   },
   mounted() {
+    this.loadStorage();
     // console.log('adding listener');
-    const that = this;
-    chrome.runtime.onMessage.addListener(function(msg) {
-      // console.log('msg', msg);
-      if (msg.showEditor) {
-        // console.log('showEditor recieved');
-        that.loadStorage();
-        that.show = true;
-        that.cancelled = false;
-        that.card.front_rich_text = msg.selectedText;
-        that.card.front_text = msg.selectedText;
-      }
-    });
+    // const that = this;
+    // chrome.runtime.onMessage.addListener(function(msg) {
+    //   // console.log('msg', msg);
+    //   if (msg.showEditor) {
+    //     // console.log('showEditor recieved');
+
+    //   }
+    // });
   },
   methods: {
     setCard(newCardData) {
@@ -271,7 +270,7 @@ export default {
       const that = this;
       chrome.storage.local.get(['user_collection', 'pinata_keys', 'newCardData'], function(items) {
         if (!items.user_collection) {
-          that.show = false;
+          window.close();
           that.cancelled = true;
           return null;
         }
@@ -284,7 +283,7 @@ export default {
     },
     cancel() {
       this.cancelled = true;
-      this.show = false;
+      window.close();
     },
     editorShiftEnter() {
       event.preventDefault();
@@ -369,7 +368,7 @@ export default {
       // deck_id needs to be resolved
       storeCard(card);
       this.cancelled = true;
-      this.show = false;
+      window.close();
       return true;
     },
     // use later for dropdown menu, copy to other deck
@@ -456,8 +455,8 @@ export default {
   top: 0px;
   z-index: 99999999;
   position: fixed;
-  height: 400px;
-  width: 300px;
+  height: 100%;
+  width: 100%;
   overflow-y: auto;
   background-color: #f6f6f6;
 }
@@ -608,8 +607,8 @@ export default {
 #buttons-row {
   text-align: center;
   position: fixed;
-  top: 340px;
-  width: 300px;
+  bottom: 0px;
+  width: 100%;
   z-index: 1000;
   background-color: rgba(63, 47, 47, 0.3);
 }

@@ -1,5 +1,6 @@
 import { deleteHighlight } from './storageManager';
 var $ = require('jquery');
+const throttle = require('lodash/throttle');
 
 // Pick a combination of characters that should (almost) never occur
 var DELIMITERS = {
@@ -9,20 +10,41 @@ var DELIMITERS = {
 
 var HIGHLIGHT_CLASS = 'highlighter--highlighted';
 
+const highlightOrder = function() {
+  const highlightsInOrder = [];
+  $('.' + HIGHLIGHT_CLASS).each(function() {
+    highlightsInOrder.push(this.id);
+  });
+  return highlightsInOrder;
+};
+
 var leftContextMenuHtml = `<ul id="left-context-ul">
   <li class="left-context-li" id="delete-highlight">delete highlight</li>
   <li class="left-context-li" id="collect-highlight">collect highlight</li>
 </ul>
 `;
 
-const leftContextMenu = function() {
+const leftContextMenu = throttle(function() {
   $('.' + HIGHLIGHT_CLASS).click(function(e) {
+    // to cancel the menu when clicked elsewhere
+    // $('*')
+    //   .not('#' + HIGHLIGHT_CLASS + ', #left-context-menu')
+    //   .click(function(e) {
+    //     console.log('not highlight class called');
+    //     $('#left-context-menu').remove();
+    //   });
     const target = $(e.target);
+    console.log(target);
     const id = target[0].id;
     const offsetTop = target[0].offsetTop;
     const offsetHeight = target[0].offsetHeight;
     const offsetLeft = target[0].offsetLeft;
     console.log(target, id, offsetTop);
+    chrome.runtime.sendMessage({
+      highlightClicked: true,
+      highlightId: id,
+      highlightUrl: window.location.href,
+    });
     const leftContextMenu = document.createElement('div');
     leftContextMenu.id = 'left-context-menu';
     document.body.append(leftContextMenu);
@@ -36,12 +58,29 @@ const leftContextMenu = function() {
       deleteHighlight(window.location.href, id);
     });
   });
+}, 200);
+
+chrome.runtime.onMessage.addListener(function(msg) {
+  if (msg.focusMainWinHighlight) {
+    console.log('focusMainWinHighlight msg', msg);
+    focusHighlight(msg.highlightId);
+  }
+});
+
+const focusHighlight = function(highlightId) {
+  $('html, body').animate(
+    {
+      scrollTop: $('#' + highlightId).offset().top - 200,
+    },
+    400
+  );
 };
 
 function getReplacements(color, highlightId) {
   // console.log('get replacements. id', highlightId);
   return {
     // removed style="background-color: ' + color + ';
+    // id needs to append some letters, hence the 'h-id-'
     start: `<span id="${highlightId}" class="${HIGHLIGHT_CLASS}">`,
     end: '</span>',
   };
@@ -205,4 +244,4 @@ function escapeRegex(text) {
   return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }
 
-export { highlight, leftContextMenu };
+export { highlight, leftContextMenu, highlightOrder };

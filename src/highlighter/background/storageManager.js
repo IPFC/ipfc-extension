@@ -1,5 +1,5 @@
 import { addHighlightError } from './errorManager.js';
-import { highlight, leftContextMenu } from './highlighter.js';
+import { highlight, leftContextMenu, highlightOrder } from './highlighter.js';
 var $ = require('jquery');
 // consider not storing color
 
@@ -37,6 +37,7 @@ const storeHighlight = function(
       focusNode: getQuery(selection.focusNode),
       focusOffset: selection.focusOffset,
       color: color,
+      highlight_id: highlightId,
       user_id: userId,
       card_id: cardId,
       visibility: 'public',
@@ -63,6 +64,7 @@ const storeCard = function(card, callback) {
     highlights[url].cards.push(card);
     // console.log('card stored', highlights[url].cards);
     chrome.storage.local.set({ highlights });
+    chrome.runtime.sendMessage({ newCardSaved: true, card: card });
     if (callback) callback();
   });
 };
@@ -71,19 +73,24 @@ const loadAllHighlights = function(url) {
   // console.log('loadAllHighlights');
   chrome.storage.local.get({ highlights: {} }, function(items) {
     // console.log('load highlights items');
-    const thisURLsHighlights = items.highlights[url];
+    const highlights = items.highlights;
+    const thisURLsHighlights = highlights[url];
     // console.log(items.highlights);
     if (thisURLsHighlights !== undefined) {
       const highlightIds = Object.keys(thisURLsHighlights);
       // console.log('highlightIds', highlightIds);
       for (const key of highlightIds) {
-        if (key !== 'cards') loadHighlight(thisURLsHighlights[key], key);
+        if (key !== 'cards') loadHighlight(thisURLsHighlights[key]);
       }
     }
+    const order = highlightOrder();
+    highlights[url].order = order;
+    console.log('is order and highlights length equal? :', thisURLsHighlights.length, order.length);
+    chrome.storage.local.set({ highlights: highlights });
   });
 };
 
-const loadHighlight = function(highlightVal, highlightId, noErrorTracking) {
+const loadHighlight = function(highlightVal, noErrorTracking) {
   // noErrorTracking is optional
   // console.log('load highlight called');
   // console.log('highlightVal', highlightVal);
@@ -104,7 +111,13 @@ const loadHighlight = function(highlightVal, highlightId, noErrorTracking) {
     }
     return false;
   } else {
-    const success = highlight(selectionString, container, selection, color, highlightId);
+    const success = highlight(
+      selectionString,
+      container,
+      selection,
+      color,
+      highlightVal.highlight_id
+    );
     leftContextMenu();
     if (!noErrorTracking && !success) {
       addHighlightError(highlightVal);

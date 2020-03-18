@@ -20,7 +20,7 @@ if (selectionString) {
     if (!items.user_collection) alert('please log in');
     const userId = items.user_collection.user_id;
     const color = items.color;
-    const highlightId = uuidv4();
+    const highlightId = 'h-id-' + uuidv4(); // need letters in front for valid html id. Can't start with numbers
     const cardId = uuidv4();
     // these are things to be saved in the new card, so they need to be sent to the editor
     chrome.runtime.sendMessage({

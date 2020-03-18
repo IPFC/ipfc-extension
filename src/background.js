@@ -1,5 +1,5 @@
 // import store from './store';
-const throttle = require('lodash/throttle');
+// const throttle = require('lodash/throttle');
 global.browser = require('webextension-polyfill');
 // var $ = require('jquery');
 
@@ -43,7 +43,32 @@ chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.sidebarResize) {
     sidebarResize(msg);
   }
+  if (msg.highlightClickedFromHighlighter) {
+    console.log('highlightClicked recieved, msg', msg);
+    highlightClicked(msg.highlightId, msg.highlightUrl);
+  }
+  if (msg.newCardSaved) {
+    chrome.storage.local.get(['sidebarWinId'], function(items) {
+      console.log(items.sidebarWinId);
+      chrome.tabs.sendMessage(items.sidebarWinId, {
+        newCardSaved: true,
+        card: msg.card,
+      });
+    });
+  }
+  if (msg.focusMainWinHighlight) {
+    console.log('focusMainWinHighlight recieved msg', msg);
+    // send to all tabs. might be easier than trying to figure out which tab is the main window, when the sidebar is focused
+    chrome.tabs.query({}, function(tabs) {
+      var message = { focusMainWinHighlight: true, highlightId: msg.highlightId };
+      for (var i = 0; i < tabs.length; ++i) {
+        chrome.tabs.sendMessage(tabs[i].id, message);
+      }
+    });
+  }
 });
+
+const highlightClicked = function(id, url) {};
 
 function checkJwt() {
   const getJwt = function() {
@@ -76,7 +101,6 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   if (changeInfo.url) {
     console.log('tab url changed');
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-      // console.log('show editor message sent');
       chrome.tabs.sendMessage(tabs[0].id, { refresh: true });
     });
   }
@@ -93,10 +117,15 @@ chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.highlightSelection) {
     // console.log('recieved new card data', msg.newCardData);
     chrome.storage.local.set({ newCardData: msg.newCardData });
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-      // console.log('show editor message sent');
-      chrome.tabs.sendMessage(tabs[0].id, { showEditor: true });
-    });
+    const editorWindow = {
+      type: 'popup',
+      url: 'cardEditor/cardEditor.html',
+      width: 400,
+      height: 600,
+      left: 0,
+      top: 0,
+    };
+    chrome.windows.create(editorWindow);
   }
 });
 

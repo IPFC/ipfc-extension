@@ -1,5 +1,5 @@
 <template>
-  <div id="sidebar-content-body" :class="windowSetting" :style="sidebarStyle">
+  <div id="sidebar-content-body" class="scroller" :class="windowSetting" :style="sidebarStyle">
     <b-container v-if="loaded" class="sidebar-content-main">
       <b-row id="main-row">
         <b-col id="main-col">
@@ -23,13 +23,28 @@
           </b-row>
           <b-row id="cards-row">
             <b-col id="cards-col" cols="12" style="padding: 0;">
-              <b-card v-for="card in deck.cards" id="card" :key="card.card_id">
+              <!-- id's need to start with letters -->
+              <b-card
+                v-for="card in deck.cards"
+                :id="'card-id' + card.card_id"
+                :key="card.card_id"
+                class="card"
+                :class="card.card_id === clickedCardId ? 'card-focused' : 'card-unfocused'"
+                @click="focusMainWinHighlight(card.highlight_id)"
+              >
                 <b-container style="padding: 0;">
                   <b-row>
                     <b-col v-if="card.front_image" class="card-content-col scroller" cols="5">
                       <b-img-lazy v-if="card.front_image" :src="card.front_image"></b-img-lazy>
                     </b-col>
-                    <b-col class="card-content-col scroller">
+                    <b-col
+                      class="card-content-col scroller"
+                      :class="
+                        card.card_id === clickedCardId
+                          ? 'card-content-col-focused'
+                          : 'card-content-col-unfocused'
+                      "
+                    >
                       <b-card-text class="font-weight-bold">{{ card.front_text }}</b-card-text>
                     </b-col>
                     <b-col cols="1">
@@ -48,7 +63,14 @@
                     <b-col v-if="card.back_image" class="card-content-col scroller">
                       <b-img-lazy :src="card.back_image"></b-img-lazy>
                     </b-col>
-                    <b-col class="card-content-col scroller">
+                    <b-col
+                      class="card-content-col scroller"
+                      :class="
+                        card.card_id === clickedCardId
+                          ? 'card-content-col-focused'
+                          : 'card-content-col-unfocused'
+                      "
+                    >
                       <b-card-text> {{ card.back_text }} </b-card-text>
                     </b-col>
                   </b-row>
@@ -65,6 +87,22 @@
 <script>
 import { BCard, BImgLazy, BCardText } from 'bootstrap-vue';
 // import throttle from 'lodash/throttle';
+var VueScrollTo = require('vue-scrollto');
+var ScrollToOptions = {
+  container: '#sidebar-content-body',
+  easing: 'ease-in',
+  offset: -200,
+  force: true,
+  cancelable: true,
+  // onStart: function(element) {
+  // },
+  // onDone: function(element) {
+  // },
+  // onCancel: function() {
+  // },
+  x: false,
+  y: true,
+};
 export default {
   components: { BCard, BImgLazy, BCardText },
   data() {
@@ -76,6 +114,7 @@ export default {
       deck: {
         cards: [],
       },
+      clickedCardId: '',
     };
   },
   computed: {},
@@ -86,9 +125,32 @@ export default {
       that.sidebarWinId = win.id;
     });
     chrome.runtime.onMessage.addListener(function(msg) {
+      console.log(msg);
       if (msg.sidebarResize) {
         const updateData = msg.updateData;
         that.resizeInNewWindow(that.sidebarWinId, updateData);
+      }
+      if (msg.highlightClicked) {
+        console.log('highlight clicked msg', msg);
+        let cardId;
+        chrome.storage.local.get(['highlights'], function(items) {
+          const associatedCards = items.highlights[msg.highlightUrl].cards;
+          for (const card of associatedCards) {
+            if (card.highlight_id === msg.highlightId) {
+              cardId = card.card_id;
+            }
+          }
+          console.log('cardId', cardId);
+          // this.clickedHighlightId = msg.highlightId;
+          const element = document.querySelector('#card-id' + cardId);
+          console.log('element', element);
+          VueScrollTo.scrollTo('#card-id' + cardId, 300, ScrollToOptions);
+          that.clickedCardId = cardId;
+        });
+      }
+      if (msg.newCardSaved) {
+        console.log('newcardsaved', msg);
+        that.deck.cards.push(msg.card);
       }
     });
     chrome.storage.local.get(['runInNewWindow', 'user_collection', 'jwt', 'highlights'], function(
@@ -104,6 +166,9 @@ export default {
       };
       console.log(items.highlights);
       that.highlights = items.highlights;
+
+      // this is getting all cards of all urls...
+
       for (const url of Object.keys(items.highlights)) {
         for (const card of items.highlights[url].cards) {
           deck.cards.push(card);
@@ -127,11 +192,16 @@ export default {
   },
   methods: {
     refreshDeck() {
+      // getting all cards for all urls now
+      // won't refresh deck title for now
+      const that = this;
       chrome.storage.local.get(['highlights'], function(items) {
-        this.highlights = items.highlights;
-        this.deck = {
-          cards: this.highlights.cards,
-        };
+        that.highlights = items.highlights;
+        for (const url of Object.keys(items.highlights)) {
+          for (const card of items.highlights[url].cards) {
+            that.deck.cards.push(card);
+          }
+        }
       });
     },
     editCard(card) {
@@ -150,12 +220,12 @@ export default {
       if (title === '') {
         return '';
       } else {
-        const split = title.split(' ')[0];
         let abrev;
-        if (split.length === 1) {
-          abrev = split[0].charAt(0) + split[0].charAt(1);
-        } else {
+        if (title.includes(' ')) {
+          const split = title.split(' ')[0];
           abrev = split[0].charAt(0) + split[1].charAt(0);
+        } else {
+          abrev = title.charAt(0) + title.charAt(1);
         }
         return abrev;
       }
@@ -203,6 +273,10 @@ export default {
         zIndex: 99999999,
       };
     },
+    focusMainWinHighlight(highlightId) {
+      console.log('highlightId', highlightId);
+      chrome.runtime.sendMessage({ focusMainWinHighlight: true, highlightId: highlightId });
+    },
     async checkJwt() {
       const getJwt = function() {
         return new Promise(resolve => {
@@ -243,20 +317,42 @@ export default {
 }
 .in-this-window {
 }
-#card {
-  margin: 10px 10px;
+.card-unfocused {
   box-shadow: 0px 0px 15px 5px rgba(0, 0, 0, 0.1);
+  -webkit-transform: scale(1, 1);
+  transform: scale(1, 1);
+  transition: transform 0.15s ease-in-out;
+  margin: 10px 10px;
+  cursor: pointer;
 }
-#card .card-body {
+.card-focused {
+  box-shadow: 0px 0px 20px 10px rgba(0, 0, 0, 0.3);
+  -webkit-transform: scale(1.07, 1);
+  transform: scale(1.07, 1);
+  transition: transform 0.15s ease-in-out;
+  margin: 0px 10px;
+}
+.card {
+  /* margin: 10px 10px; */
+  /* box-shadow: 0px 0px 15px 5px rgba(0, 0, 0, 0.1); */
+}
+.card .card-body {
   padding: 8px 20px 8px 10px;
 }
-.card-content-col {
+.card-content-col-focused {
+  max-height: none;
+  overflow: auto;
+  transition: max-height 0.15s ease-in-out;
+}
+.card-content-col-unfocused {
   max-height: 5em;
   overflow: auto;
+  transition: max-height 0.15s ease-in-out;
 }
 .scroller::-webkit-scrollbar {
-  width: 8px;
-  padding-right: 5px;
+  width: 5px;
+  background-color: rgba(1, 1, 1, 0);
+  /* padding-right: 5px; */
 }
 .scroller::-webkit-scrollbar-thumb {
   background-color: rgba(162, 162, 162, 0.5);

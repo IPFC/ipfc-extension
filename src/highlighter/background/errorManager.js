@@ -1,14 +1,14 @@
 import { loadHighlight } from './storageManager.js';
 
-var MAX_RETRY_TIME = 10000; // Stop trying to highlight after this time (in ms)
+var MAX_RETRY_TIME = 5000; // Stop trying to highlight after this time (in ms)
 var RETRY_INTERVAL = 500;
 // ** later we can have the cards that weren't added at a
 // seperate part of the list, and user can reselect location
 var highlightErrors = [];
 
-const addHighlightError = function(highlight) {
+const addHighlightError = function(highlightVal) {
   highlightErrors.push({
-    highlight: highlight,
+    highlight: highlightVal,
     errorTime: Date.now(),
   });
   console.log('addHighlightErrors');
