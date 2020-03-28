@@ -157,9 +157,15 @@ function makeFlashcard() {
   const jwtValid = checkJwt();
   // console.log('valid', jwtValid);
   if (jwtValid) {
-    chrome.tabs.executeScript({
-      file: 'highlighter/called/getHighlight.js',
+    chrome.tabs.query({}, function(tabs) {
+      var message = { getHighlight: true };
+      for (var i = 0; i < tabs.length; ++i) {
+        chrome.tabs.sendMessage(tabs[i].id, message);
+      }
     });
+    // chrome.tabs.executeScript({
+    //  file: 'highlighter/called/getHighlight.js',
+    // });
   } else alert('Please sign in');
 }
 

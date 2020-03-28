@@ -117,7 +117,7 @@ import { Quill, quillEditor } from 'vue-quill-editor';
 import 'quill/dist/quill.snow.css';
 import imageUpload from 'quill-plugin-image-upload';
 import defaultCollection from '../assets/defaultCollection.json';
-import { storeCard } from '../highlighter/background/storageManager.js';
+import { storeCard } from '../highlighter/background/highlighter.js';
 
 // const uuidv4 = require('uuid/v4');
 const axios = require('axios');
