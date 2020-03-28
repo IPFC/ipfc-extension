@@ -1,10 +1,11 @@
 <template>
   <div id="sidebar-content-body" class="scroller" :class="windowSetting" :style="sidebarStyle">
+    <sidebar-header />
     <b-container v-if="loaded" class="sidebar-content-main">
       <b-row id="main-row">
         <b-col v-if="!refreshingDeck" id="main-col">
           <b-row id="title-row">
-            <b-col id="icon-col" cols="2" class="align-self-center">
+            <b-col id="icon-col" cols="2" class="align-self-center ml-2">
               <div id="icon" :style="{ backgroundColor: deck.icon_color }">
                 <p id="deck-abrev">
                   <strong>{{ getTitleAbrev(deck.title) }}</strong>
@@ -21,7 +22,7 @@
               <div id="underline"></div>
             </b-col>
           </b-row>
-          <b-row id="cards-row">
+          <b-row id="cards-row" class="m-0">
             <b-col id="cards-col" cols="12" style="padding: 0;">
               <!-- id's need to start with letters -->
               <b-card
@@ -87,6 +88,7 @@
 <script>
 import { BCard, BImgLazy, BCardText } from 'bootstrap-vue';
 import throttle from 'lodash/throttle';
+import SidebarHeader from '../components/SidebarHeader.vue';
 var VueScrollTo = require('vue-scrollto');
 var ScrollToOptions = {
   container: '#sidebar-content-body',
@@ -104,7 +106,7 @@ var ScrollToOptions = {
   y: true,
 };
 export default {
-  components: { BCard, BImgLazy, BCardText },
+  components: { BCard, BImgLazy, BCardText, SidebarHeader },
   data() {
     return {
       windowSetting: '',
@@ -332,7 +334,7 @@ export default {
   height: 100%;
   background-color: #f6f6f6;
   overflow-y: auto;
-  padding: 10px 0px 0px 0px;
+  padding: 0;
 }
 .in-other-window {
 }
@@ -387,8 +389,9 @@ export default {
   color: black;
 }
 .sidebar-content-main {
+  margin-top: 10px;
   overflow-y: auto;
-  padding: 0;
+  padding: 0px 0px 100px 0px;
 }
 .idebar-content-main::-webkit-scrollbar {
   width: 0em;
@@ -399,13 +402,14 @@ export default {
 #main-col {
   margin: auto;
   max-width: 600px;
-  padding: 15;
+  padding: 0px;
 }
 #title-row {
   width: 100%;
 }
 #text-col {
   padding: 0px 0px 10px 20px;
+  margin: 0px 0px 0px 20px;
 }
 #underline {
   position: absolute;
@@ -440,8 +444,8 @@ export default {
   margin: 0;
 }
 .text {
-  padding: 0px 0px 0px 10px;
-  margin: 0px;
+  padding: 0;
+  margin: 0;
 }
 .text:hover {
   cursor: pointer;

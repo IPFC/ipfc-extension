@@ -72,7 +72,7 @@
     "pretty-quick": "^1.8.0",
     "sass-loader": "^7.1.0",
     "vue-loader": "^15.4.2",
-    "vue-template-compiler": "^2.6.10",
+    "vue-template-compiler": "^2.6.11",
     "web-ext-types": "^2.1.0",
     "webpack": "^4.20.2",
     "webpack-cli": "^3.3.10",

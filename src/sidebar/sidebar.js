@@ -15,13 +15,13 @@ import {
   faEdit,
   // faUndo,
   faTrashAlt,
-  // faSearch,
-  // faCloud,
+  faSearch,
+  faCloud,
   faCheck,
   // faTimes,
-  // faSync,
+  faSync,
   // faSpinner,
-  // faExclamation,
+  faExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   FontAwesomeIcon,
@@ -39,13 +39,13 @@ library.add(
   faEdit,
   // faUndo,
   faTrashAlt,
-  // faSearch,
-  // faCloud,
-  faCheck
+  faSearch,
+  faCloud,
+  faCheck,
   // faTimes,
-  // faSync,
+  faSync,
   // faSpinner
-  // faExclamation
+  faExclamation
 );
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
