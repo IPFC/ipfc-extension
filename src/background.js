@@ -23,8 +23,12 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 //     onPageLoad();
 //   }
 // });
-
+var lastActiveWindow;
 const sidebarResize = function(msg) {
+  chrome.windows.getLastFocused(function(win) {
+    // console.log('win', win);
+    lastActiveWindow = win.id;
+  });
   chrome.storage.local.get(['sidebarWinId'], function(items) {
     chrome.tabs.sendMessage(items.sidebarWinId, {
       sidebarResize: true,
@@ -43,13 +47,17 @@ chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.sidebarResize) {
     sidebarResize(msg);
   }
+  if (msg.resizeComplete) {
+    // refocus on last active
+    chrome.windows.update(lastActiveWindow, { focused: true });
+  }
   if (msg.highlightClickedFromHighlighter) {
-    console.log('highlightClicked recieved, msg', msg);
+    // console.log('highlightClicked recieved, msg', msg);
     highlightClicked(msg.highlightId, msg.highlightUrl);
   }
   if (msg.newCardSaved) {
     chrome.storage.local.get(['sidebarWinId'], function(items) {
-      console.log(items.sidebarWinId);
+      // console.log(items.sidebarWinId);
       chrome.tabs.sendMessage(items.sidebarWinId, {
         newCardSaved: true,
         card: msg.card,
@@ -57,13 +65,21 @@ chrome.runtime.onMessage.addListener(function(msg) {
     });
   }
   if (msg.focusMainWinHighlight) {
-    console.log('focusMainWinHighlight recieved msg', msg);
+    // console.log('focusMainWinHighlight recieved msg', msg);
     // send to all tabs. might be easier than trying to figure out which tab is the main window, when the sidebar is focused
     chrome.tabs.query({}, function(tabs) {
       var message = { focusMainWinHighlight: true, highlightId: msg.highlightId };
       for (var i = 0; i < tabs.length; ++i) {
         chrome.tabs.sendMessage(tabs[i].id, message);
       }
+    });
+  }
+  if (msg.highlightDeleted) {
+    chrome.storage.local.get(['sidebarWinId'], function(items) {
+      // console.log(items.sidebarWinId);
+      chrome.tabs.sendMessage(items.sidebarWinId, {
+        highlightDeleted: true,
+      });
     });
   }
 });
@@ -80,7 +96,7 @@ function checkJwt() {
   };
   return getJwt().then(value => {
     const jwt = value;
-    console.log('jwt', jwt);
+    // console.log('jwt', jwt);
     if (jwt === null) {
       return false;
     } else if (!jwt || jwt.split('.').length < 3) {
@@ -99,7 +115,7 @@ function checkJwt() {
 // this is needed for single page applications which don't reload on url change
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   if (changeInfo.url) {
-    console.log('tab url changed');
+    // console.log('tab url changed');
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
       chrome.tabs.sendMessage(tabs[0].id, { refresh: true });
     });
@@ -127,13 +143,25 @@ chrome.runtime.onMessage.addListener(function(msg) {
     };
     chrome.windows.create(editorWindow);
   }
+  if (msg.openEditor) {
+    chrome.storage.local.set({ toEditCardData: msg.toEditCardData });
+    const editorWindow = {
+      type: 'popup',
+      url: 'cardEditor/cardEditor.html',
+      width: 400,
+      height: 600,
+      left: 0,
+      top: 0,
+    };
+    chrome.windows.create(editorWindow);
+  }
 });
 
 function makeFlashcard() {
   // console.log('makeFlashcard called');
   // might need to check if user collection valid as well
   const jwtValid = checkJwt();
-  console.log('valid', jwtValid);
+  // console.log('valid', jwtValid);
   if (jwtValid) {
     chrome.tabs.executeScript({
       file: 'highlighter/called/getHighlight.js',

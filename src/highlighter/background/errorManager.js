@@ -11,14 +11,20 @@ const addHighlightError = function(highlightVal) {
     highlight: highlightVal,
     errorTime: Date.now(),
   });
-  console.log('addHighlightErrors');
-  console.log(highlightErrors);
+  // if (highlightErrors.length > 0) {
+  //   for (const error of highlightErrors) {
+  //     console.log('addHighlightError');
+  //     console.log(error);
+  //   }
+  // }
 };
 
 setInterval(() => {
   highlightErrors.forEach((highlightError, idx) => {
     if (Date.now() - highlightError.errorTime > MAX_RETRY_TIME) {
       // Stop the search
+      // failed, log out
+      console.log('error adding highlight: ', highlightError.highlight);
       highlightErrors.splice(idx, 1);
     } else {
       // Keep retrying

@@ -2,7 +2,7 @@
   <div id="sidebar-content-body" class="scroller" :class="windowSetting" :style="sidebarStyle">
     <b-container v-if="loaded" class="sidebar-content-main">
       <b-row id="main-row">
-        <b-col id="main-col">
+        <b-col v-if="!refreshingDeck" id="main-col">
           <b-row id="title-row">
             <b-col id="icon-col" cols="2" class="align-self-center">
               <div id="icon" :style="{ backgroundColor: deck.icon_color }">
@@ -30,7 +30,7 @@
                 :key="card.card_id"
                 class="card"
                 :class="card.card_id === clickedCardId ? 'card-focused' : 'card-unfocused'"
-                @click="focusMainWinHighlight(card.highlight_id)"
+                @click="focusMainWinHighlight(card.card_id, card.highlight_id)"
               >
                 <b-container style="padding: 0;">
                   <b-row>
@@ -86,7 +86,7 @@
 
 <script>
 import { BCard, BImgLazy, BCardText } from 'bootstrap-vue';
-// import throttle from 'lodash/throttle';
+import throttle from 'lodash/throttle';
 var VueScrollTo = require('vue-scrollto');
 var ScrollToOptions = {
   container: '#sidebar-content-body',
@@ -111,6 +111,7 @@ export default {
       sidebarStyle: {},
       runInNewWindow: false,
       loaded: false,
+      refreshingDeck: false,
       deck: {
         cards: [],
       },
@@ -125,13 +126,13 @@ export default {
       that.sidebarWinId = win.id;
     });
     chrome.runtime.onMessage.addListener(function(msg) {
-      console.log(msg);
+      // console.log(msg);
       if (msg.sidebarResize) {
         const updateData = msg.updateData;
         that.resizeInNewWindow(that.sidebarWinId, updateData);
       }
       if (msg.highlightClicked) {
-        console.log('highlight clicked msg', msg);
+        // console.log('highlight clicked msg', msg);
         let cardId;
         chrome.storage.local.get(['highlights'], function(items) {
           const associatedCards = items.highlights[msg.highlightUrl].cards;
@@ -140,17 +141,21 @@ export default {
               cardId = card.card_id;
             }
           }
-          console.log('cardId', cardId);
+          // console.log('cardId', cardId);
           // this.clickedHighlightId = msg.highlightId;
-          const element = document.querySelector('#card-id' + cardId);
-          console.log('element', element);
+          // const element = document.querySelector('#card-id' + cardId);
+          // console.log('element', element);
           VueScrollTo.scrollTo('#card-id' + cardId, 300, ScrollToOptions);
           that.clickedCardId = cardId;
         });
       }
       if (msg.newCardSaved) {
-        console.log('newcardsaved', msg);
+        // console.log('newcardsaved', msg);
         that.deck.cards.push(msg.card);
+      }
+      if (msg.highlightDeleted) {
+        console.log('highlightDeleted recieved');
+        throttle(that.refreshDeck(), 2000);
       }
     });
     chrome.storage.local.get(['runInNewWindow', 'user_collection', 'jwt', 'highlights'], function(
@@ -164,17 +169,17 @@ export default {
         icon_color: 'blue',
         cards: [],
       };
-      console.log(items.highlights);
+      console.log('initial load, items.highlights', items.highlights);
       that.highlights = items.highlights;
 
       // this is getting all cards of all urls...
-
       for (const url of Object.keys(items.highlights)) {
         for (const card of items.highlights[url].cards) {
           deck.cards.push(card);
         }
       }
       that.deck = deck;
+      console.log('deck', deck);
       that.loaded = true;
     });
   },
@@ -182,31 +187,43 @@ export default {
     const that = this;
     chrome.storage.local.get(['runInNewWindow'], function(items) {
       if (!items.runInNewWindow) {
-        console.log('running in this window');
+        // console.log('running in this window');
         that.resizeInThisWindow();
       } else {
-        console.log('running in new window');
+        // console.log('running in new window');
         that.windowSetting = 'in-other-window';
       }
     });
   },
   methods: {
-    refreshDeck() {
+    refreshDeck: throttle(function() {
+      this.refreshingDeck = true;
       // getting all cards for all urls now
       // won't refresh deck title for now
       const that = this;
+      that.deck.cards = [];
       chrome.storage.local.get(['highlights'], function(items) {
         that.highlights = items.highlights;
         for (const url of Object.keys(items.highlights)) {
           for (const card of items.highlights[url].cards) {
+            console.log(items.highlights[url].cards);
+            // so this is all URLS mode. we don't care about order, but maybe we should put a divider with the site name in
+            // for one URL mode, we need to loop through
             that.deck.cards.push(card);
           }
+          console.log('refresh, deck', that.deck);
         }
       });
-    },
+      this.refreshingDeck = false;
+    }, 1000),
     editCard(card) {
-      // this.$store.commit('updateCardToEditIndex', this.deck.cards.indexOf(card));
-      // this.$router.push('/card-editor');
+      chrome.runtime.sendMessage({
+        openEditor: true,
+        toEditCardData: {
+          time: new Date().getTime(),
+          card: card,
+        },
+      });
     },
     cardOrCards(deckLength) {
       if (deckLength === 1) {
@@ -238,7 +255,7 @@ export default {
       } else if (updateData.width < 250) {
         updateData.width = 250;
       }
-      console.log('update.width', updateData.width);
+      // console.log('update.width', updateData.width);
       if (window.screenLeft <= updateData.mainWinLeft) {
         updateData.left = updateData.mainWinLeft - updateData.width;
       } else {
@@ -249,7 +266,9 @@ export default {
         width: updateData.width,
         top: updateData.top,
         left: updateData.left,
+        focused: true,
       });
+      chrome.runtime.sendMessage({ resizeComplete: true });
     },
     resizeInThisWindow() {
       this.windowSetting = 'in-this-window';
@@ -273,8 +292,10 @@ export default {
         zIndex: 99999999,
       };
     },
-    focusMainWinHighlight(highlightId) {
-      console.log('highlightId', highlightId);
+    focusMainWinHighlight(cardId, highlightId) {
+      // console.log('highlightId', highlightId);
+      VueScrollTo.scrollTo('#card-id' + cardId, 300, ScrollToOptions);
+      this.clickedCardId = cardId;
       chrome.runtime.sendMessage({ focusMainWinHighlight: true, highlightId: highlightId });
     },
     async checkJwt() {
@@ -286,7 +307,7 @@ export default {
         });
       };
       const jwt = await getJwt();
-      console.log('jwt', jwt);
+      // console.log('jwt', jwt);
       if (jwt === null) {
         return false;
       } else if (!jwt || jwt.split('.').length < 3) {

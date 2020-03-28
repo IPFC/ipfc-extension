@@ -1,8 +1,5 @@
-// var windowWidth = window.innerWidth;
-// var windowHeight = window.innerHeight;
-
 const resize = function() {
-  console.log('resize called');
+  // console.log('resize called');
   const updateData = {
     mainWinLeft: window.screenLeft,
     mainWinWidth: window.outerWidth,

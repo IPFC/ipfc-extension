@@ -1,6 +1,6 @@
 'use strict';
 // import store from '.../store';
-import { storeHighlight } from '../background/storageManager.js';
+import { storeHighlight, storeHighlightsOrder } from '../background/storageManager.js';
 import { highlight } from '../background/highlighter.js';
 const uuidv4 = require('uuid/v4');
 
@@ -17,22 +17,34 @@ if (selectionString) {
 
   chrome.storage.local.get(['color', 'user_collection'], items => {
     // console.log(items.user_collection);
-    if (!items.user_collection) alert('please log in');
+    if (!items.user_collection) alert('please log in to IPFC');
     const userId = items.user_collection.user_id;
     const color = items.color;
     const highlightId = 'h-id-' + uuidv4(); // need letters in front for valid html id. Can't start with numbers
     const cardId = uuidv4();
     // these are things to be saved in the new card, so they need to be sent to the editor
-    chrome.runtime.sendMessage({
-      highlightSelection: true,
-      newCardData: {
-        selection: selectionString,
-        card_id: cardId,
-        user_id: userId,
-        highlight_url: window.location.href,
-        highlight_id: highlightId,
-      },
-    });
+
+    const newCardOpenEditor = function(
+      selectionString,
+      cardId,
+      userId,
+      highlightUrl,
+      highlightId,
+      callback
+    ) {
+      chrome.runtime.sendMessage({
+        highlightSelection: true,
+        newCardData: {
+          time: new Date().getTime(),
+          selection: selectionString,
+          card_id: cardId,
+          user_id: userId,
+          highlight_url: highlightUrl,
+          highlight_id: highlightId,
+        },
+      });
+      if (callback) callback();
+    };
     // ** change to highlight first, then open card editor,
     // finally call store from there, then do API call, sync to db
     // get rid of color?
@@ -47,7 +59,18 @@ if (selectionString) {
       cardId,
       highlightId,
       () => {
-        highlight(selectionString, container, selection, color, highlightId);
+        newCardOpenEditor(
+          selectionString,
+          cardId,
+          userId,
+          window.location.href,
+          highlightId,
+          () => {
+            highlight(selectionString, container, selection, color, highlightId, () => {
+              storeHighlightsOrder(window.location.href);
+            });
+          }
+        );
       }
     );
   });

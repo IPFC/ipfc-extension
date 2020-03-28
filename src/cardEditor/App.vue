@@ -93,12 +93,12 @@
               <b-row>
                 <b-col class="btn-col">
                   <b-button class="btn-circle btn-md" @click="doneCheck()">
-                    <font-awesome-icon size="2x" icon="check" />
+                    <font-awesome-icon size="2x" style="height: 2em" icon="check" />
                   </b-button>
                 </b-col>
                 <b-col class="btn-col">
                   <b-button class="btn-circle btn-md" @click="cancel()">
-                    <font-awesome-icon size="2x" icon="times" />
+                    <font-awesome-icon size="2x" style="height: 2em" icon="times" />
                   </b-button>
                 </b-col>
               </b-row>
@@ -253,33 +253,45 @@ export default {
     // });
   },
   methods: {
-    setCard(newCardData) {
+    setCard(cardData) {
       this.card = {
         card_tags: ['Daily Review'],
-        front_text: newCardData.selection,
-        back_text: '',
-        front_rich_text: newCardData.selection,
-        back_rich_text: '',
-        card_id: newCardData.card_id,
-        user_id: newCardData.user_id,
-        highlight_url: newCardData.highlight_url,
-        highlight_id: newCardData.highlight_id,
+        front_text: cardData.selection ? cardData.selection : cardData.front_text,
+        back_text: cardData.back_text ? cardData.back_text : '',
+        front_rich_text: cardData.selection ? cardData.selection : cardData.front_rich_text,
+        back_rich_text: cardData.back_rich_text ? cardData.back_rich_text : '',
+        card_id: cardData.card_id,
+        user_id: cardData.user_id,
+        highlight_url: cardData.highlight_url,
+        highlight_id: cardData.highlight_id,
       };
     },
     loadStorage() {
       const that = this;
-      chrome.storage.local.get(['user_collection', 'pinata_keys', 'newCardData'], function(items) {
-        if (!items.user_collection) {
-          window.close();
-          that.cancelled = true;
-          return null;
+      chrome.storage.local.get(
+        ['user_collection', 'pinata_keys', 'newCardData', 'toEditCardData'],
+        function(items) {
+          if (!items.user_collection) {
+            window.close();
+            that.cancelled = true;
+            return null;
+          }
+          that.user_collection = items.user_collection;
+          that.editorOption.modules.toolbar =
+            items.user_collection.webapp_settings.text_editor.options.toolbar;
+          console.log(
+            'items.toEditCardData, items.newCardData',
+            items.toEditCardData,
+            items.newCardData
+          );
+          if (items.toEditCardData) {
+            if (items.toEditCardData.time > items.newCardData.time)
+              that.setCard(items.toEditCardData.card);
+            else that.setCard(items.newCardData);
+          } else that.setCard(items.newCardData);
+          that.loaded = true;
         }
-        that.user_collection = items.user_collection;
-        that.editorOption.modules.toolbar =
-          items.user_collection.webapp_settings.text_editor.options.toolbar;
-        that.setCard(items.newCardData);
-        that.loaded = true;
-      });
+      );
     },
     cancel() {
       this.cancelled = true;
@@ -366,9 +378,12 @@ export default {
     async submitStep2(cardInput, quill) {
       const card = await this.getQuillData(cardInput, quill);
       // deck_id needs to be resolved
-      storeCard(card);
+      const closeWindow = () => {
+        window.close();
+      };
+      storeCard(card, closeWindow);
       this.cancelled = true;
-      window.close();
+      // window.close();
       return true;
     },
     // use later for dropdown menu, copy to other deck
