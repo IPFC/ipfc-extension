@@ -7,6 +7,7 @@
   background-color: rgba(248, 103, 13, 0.5);
 }
 #left-context-ul {
+  list-style-image: none;
   list-style-type: none;
   z-index: 9999999999;
   background-color: #f6f6f6;

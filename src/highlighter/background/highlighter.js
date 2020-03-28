@@ -28,14 +28,17 @@ const setupContextMenu = function() {
   <li class="left-context-li" id="collect-highlight">collect highlight</li>
 </ul>
 `;
-  const leftContextMenu = document.createElement('div');
-  leftContextMenu.id = 'left-context-menu';
-  document.body.append(leftContextMenu);
-  $('#left-context-menu').html(leftContextMenuHtml);
+  if ($('#left-context-menu').length === 0) {
+    const leftContextMenu = document.createElement('div');
+    leftContextMenu.id = 'left-context-menu';
+    document.body.append(leftContextMenu);
+    $('#left-context-menu').html(leftContextMenuHtml);
+  }
   const $menu = $('#left-context-menu');
   const repositionAndShowLeftContextMenu = function(e) {
     // console.log('repositionAndShowLeftContextMenu e', e);
     if ($(e.target).is('#delete-highlight')) {
+      console.log('delete clicked');
       deleteHighlight(window.location.href, clickedHighlightId);
       $menu.hide();
     } else if (
@@ -49,13 +52,13 @@ const setupContextMenu = function() {
         .is('.' + HIGHLIGHT_CLASS)
     ) {
       const target = $(e.target);
-      console.log(target);
+      // console.log(target);
       const id = target[0].id;
       clickedHighlightId = id;
-      console.log(clickedHighlightId);
-      const offsetTop = target[0].offsetTop;
+      const offsetTop = Math.round(target.offset().top);
       const offsetHeight = target[0].offsetHeight;
-      const offsetLeft = target[0].offsetLeft;
+      const offsetLeft = target.offset().left;
+      console.log('offsetLeft, offsetHeight, offsetTop', offsetLeft, offsetHeight, offsetTop);
       chrome.runtime.sendMessage({
         highlightClicked: true,
         highlightId: id,
@@ -63,11 +66,9 @@ const setupContextMenu = function() {
       });
       $menu.css({
         position: 'absolute',
-        top: offsetTop - offsetHeight,
+        top: offsetTop - offsetHeight - 55,
         left: offsetLeft,
       });
-
-      $menu.toggle();
       togglePopupLeftContextMenu();
     }
   };
@@ -92,6 +93,7 @@ const setupContextMenu = function() {
     }
     return false;
   };
+  $menu.toggle();
   $(document).off('click');
   $(document).on('click', repositionAndShowLeftContextMenu);
 };

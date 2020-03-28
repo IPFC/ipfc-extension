@@ -216,7 +216,6 @@ const deleteHighlight = function(url, id) {
 };
 
 export {
-  loadThisUrlsHighlights,
   loadHighlight,
   storeHighlight,
   storeHighlightsOrder,

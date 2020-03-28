@@ -51,10 +51,6 @@ chrome.runtime.onMessage.addListener(function(msg) {
     // refocus on last active
     chrome.windows.update(lastActiveWindow, { focused: true });
   }
-  if (msg.highlightClickedFromHighlighter) {
-    // console.log('highlightClicked recieved, msg', msg);
-    highlightClicked(msg.highlightId, msg.highlightUrl);
-  }
   if (msg.newCardSaved) {
     chrome.storage.local.get(['sidebarWinId'], function(items) {
       // console.log(items.sidebarWinId);
@@ -83,8 +79,6 @@ chrome.runtime.onMessage.addListener(function(msg) {
     });
   }
 });
-
-const highlightClicked = function(id, url) {};
 
 function checkJwt() {
   const getJwt = function() {
