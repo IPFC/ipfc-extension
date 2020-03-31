@@ -117,7 +117,7 @@ import { Quill, quillEditor } from 'vue-quill-editor';
 import 'quill/dist/quill.snow.css';
 import imageUpload from 'quill-plugin-image-upload';
 import defaultCollection from '../assets/defaultCollection.json';
-import { storeCard } from '../highlighter/background/highlighter.js';
+import { storeCard } from '../highlighter/highlighter.js';
 
 // const uuidv4 = require('uuid/v4');
 const axios = require('axios');
@@ -279,11 +279,11 @@ export default {
           that.user_collection = items.user_collection;
           that.editorOption.modules.toolbar =
             items.user_collection.webapp_settings.text_editor.options.toolbar;
-          console.log(
-            'items.toEditCardData, items.newCardData',
-            items.toEditCardData,
-            items.newCardData
-          );
+          // console.log(
+          //   'items.toEditCardData, items.newCardData',
+          //   items.toEditCardData,
+          //   items.newCardData
+          // );
           if (items.toEditCardData) {
             if (items.toEditCardData.time > items.newCardData.time)
               that.setCard(items.toEditCardData.card);

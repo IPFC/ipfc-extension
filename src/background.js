@@ -14,16 +14,9 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
   }
 });
 
-// const onPageLoad = function() {
-//   checkJwt();
-// };
-
-// chrome.runtime.onMessage.addListener(function(msg) {
-//   if (msg.pageLoaded) {
-//     onPageLoad();
-//   }
-// });
 var lastActiveWindow;
+var lastActiveTabId;
+var lastActiveTabUrl;
 const sidebarResize = function(msg) {
   chrome.windows.getLastFocused(function(win) {
     // console.log('win', win);
@@ -37,12 +30,63 @@ const sidebarResize = function(msg) {
   });
 };
 
+const SendOutRefresh = function(url, callback) {
+  const message = { refreshHighlights: true, url: url, refreshOrder: true };
+  chrome.tabs.query({}, function(tabs) {
+    for (var i = 0; i < tabs.length; ++i) {
+      // console.log(message);
+      chrome.tabs.sendMessage(tabs[i].id, message);
+      if (i === tabs.length + 1) {
+        if (callback) callback();
+      }
+    }
+  });
+};
+
+const checkIfHighlightsExist = function(url, callback) {
+  chrome.storage.local.get(['highlights'], function(items) {
+    let highlights = items.highlights;
+    if (!highlights) highlights = {};
+    if (!highlights[url])
+      highlights[url] = {
+        cards: [],
+      };
+    chrome.storage.local.set({ highlights: highlights });
+    if (callback) callback();
+  });
+};
+
 chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.popupWinId) {
     chrome.storage.local.set({ popupWinId: msg.popupWinId });
   }
   if (msg.sidebarWinId) {
     chrome.storage.local.set({ sidebarWinId: msg.sidebarWinId });
+  }
+  if (msg.highlightSelection) {
+    // console.log('recieved new card data', msg.newCardData);
+    chrome.storage.local.set({ newCardData: msg.newCardData });
+    const editorWindow = {
+      type: 'popup',
+      url: 'cardEditor/cardEditor.html',
+      width: 400,
+      height: 600,
+      left: 0,
+      top: 0,
+    };
+    chrome.windows.create(editorWindow);
+  }
+  if (msg.openEditor) {
+    chrome.storage.local.set({ toEditCardData: msg.toEditCardData });
+    const editorWindow = {
+      type: 'popup',
+      url: 'cardEditor/cardEditor.html',
+      width: 400,
+      height: 600,
+      left: 0,
+      top: 0,
+    };
+    chrome.windows.create(editorWindow);
   }
   if (msg.sidebarResize) {
     sidebarResize(msg);
@@ -78,6 +122,30 @@ chrome.runtime.onMessage.addListener(function(msg) {
       });
     });
   }
+  if (msg.refreshHighlights) {
+    // console.log('refresh highlights');
+    chrome.storage.local.get(['lastActiveTabUrl'], function(items) {
+      var message = { refreshHighlights: true, url: items.lastActiveTabUrl };
+      if (msg.refreshOrder) {
+        message.refreshOrder = true;
+      }
+      chrome.tabs.query({}, function(tabs) {
+        for (var i = 0; i < tabs.length; ++i) {
+          // console.log(message);
+          chrome.tabs.sendMessage(tabs[i].id, message);
+        }
+      });
+    });
+  }
+  if (msg.orderRefreshed) {
+    chrome.storage.local.get(['sidebarWinId'], function(items) {
+      // console.log('orderRefreshed');
+      chrome.tabs.sendMessage(items.sidebarWinId, {
+        orderRefreshed: true,
+      });
+    });
+  }
+  if (msg.updateActiveTab) updateActiveTab();
 });
 
 function checkJwt() {
@@ -106,13 +174,75 @@ function checkJwt() {
   });
 }
 
-// this is needed for single page applications which don't reload on url change
+const updateActiveTab = function(refresh) {
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    if (tabs.length === 0) return null;
+    lastActiveTabId = tabs[0].id;
+    if (!tabs[0].url) return null;
+    lastActiveTabUrl = tabs[0].url;
+    chrome.storage.local.get(['lastActiveTabId', 'lastActiveTabUrl', 'sidebarWinId'], function(
+      items
+    ) {
+      // console.log(lastActiveTabUrl, items.lastActiveTabUrl);
+      // items.sidebarWinId + 1 is because the tab id is actually the windowID +1
+      if (
+        items.lastActiveTabId !== lastActiveTabId &&
+        lastActiveTabId !== items.sidebarWinId + 1 &&
+        !lastActiveTabUrl.includes('chrome')
+      ) {
+        chrome.storage.local.set({
+          // this is where it all goes wrong.....
+          lastActiveTabId: lastActiveTabId,
+        });
+      }
+      if (items.lastActiveTabUrl !== lastActiveTabUrl && !lastActiveTabUrl.includes('chrome')) {
+        chrome.storage.local.set({
+          lastActiveTabUrl: lastActiveTabUrl,
+        });
+      }
+      // this is needed for single page applications which don't reload on url change
+      if (refresh)
+        chrome.tabs.sendMessage(tabs[0].id, {
+          refresh: true,
+        });
+    });
+  });
+};
+
+chrome.tabs.onActivated.addListener(function(activeInfo) {
+  // console.log('chrome.tabs.onActivated.');
+  // console.log(activeInfo.tabId, activeInfo.windowId);
+  updateActiveTab();
+});
+chrome.windows.onFocusChanged.addListener(function(windowId) {
+  // console.log('chrome.windows.onFocusChanged');
+  // console.log('windowId', windowId);sidebarWinId
+  if (windowId !== -1) {
+    chrome.windows.get(windowId, { populate: true }, function(window) {
+      // console.log(window);
+      // console.log(window.tabs);
+      if (!window || !window.tabs || !window.tabs[0].url) return null;
+      // console.log('win.tabs[0].url', window.tabs[0].url);
+      // Will this be blocking updates we want? && window.tabs[0].url !== lastActiveTabUrl
+      if (!window.tabs[0].url.includes('chrome') && window.tabs[0].url !== lastActiveTabUrl) {
+        updateActiveTab();
+        checkIfHighlightsExist(window.tabs[0].url, () => {
+          SendOutRefresh(window.tabs[0].url);
+        });
+      }
+    });
+  }
+});
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   if (changeInfo.url) {
-    // console.log('tab url changed');
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-      chrome.tabs.sendMessage(tabs[0].id, { refresh: true });
-    });
+    // Will this be blocking updates we want? && changeInfo.url !== lastActiveTabUrl
+
+    if (!changeInfo.url.includes('chrome') && changeInfo.url !== lastActiveTabUrl) {
+      updateActiveTab(true);
+      checkIfHighlightsExist(changeInfo.url, () => {
+        SendOutRefresh(changeInfo.url);
+      });
+    }
   }
 });
 
@@ -121,34 +251,6 @@ chrome.contextMenus.create({
   title: 'Make Flashcard',
   onclick: makeFlashcard,
   contexts: ['selection'],
-});
-
-chrome.runtime.onMessage.addListener(function(msg) {
-  if (msg.highlightSelection) {
-    // console.log('recieved new card data', msg.newCardData);
-    chrome.storage.local.set({ newCardData: msg.newCardData });
-    const editorWindow = {
-      type: 'popup',
-      url: 'cardEditor/cardEditor.html',
-      width: 400,
-      height: 600,
-      left: 0,
-      top: 0,
-    };
-    chrome.windows.create(editorWindow);
-  }
-  if (msg.openEditor) {
-    chrome.storage.local.set({ toEditCardData: msg.toEditCardData });
-    const editorWindow = {
-      type: 'popup',
-      url: 'cardEditor/cardEditor.html',
-      width: 400,
-      height: 600,
-      left: 0,
-      top: 0,
-    };
-    chrome.windows.create(editorWindow);
-  }
 });
 
 function makeFlashcard() {

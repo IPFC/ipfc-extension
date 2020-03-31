@@ -21,20 +21,20 @@
           <p class="tab-title">Mine: all</p>
         </div>
         <div
-          id="site-all"
+          id="page-all"
           class="tab-div"
-          :class="selectedTab === 'site-all' ? 'selected' : 'not-selected'"
-          @click="selectTab('site-all')"
+          :class="selectedTab === 'page-all' ? 'selected' : 'not-selected'"
+          @click="selectTab('page-all')"
         >
-          <p class="tab-title">Site: all</p>
+          <p class="tab-title">Page: all</p>
         </div>
         <div
-          id="site-mine"
+          id="page-mine"
           class="tab-div"
-          :class="selectedTab === 'site-mine' ? 'selected' : 'not-selected'"
-          @click="selectTab('site-mine')"
+          :class="selectedTab === 'page-mine' ? 'selected' : 'not-selected'"
+          @click="selectTab('page-mine')"
         >
-          <p class="tab-title">Site: mine</p>
+          <p class="tab-title">Page: mine</p>
         </div>
       </b-row>
     </b-container>
@@ -46,13 +46,13 @@ export default {
   components: {},
   data() {
     return {
-      selectedTab: 'site-all',
+      selectedTab: 'page-mine',
     };
   },
   methods: {
     selectTab(tab) {
       this.selectedTab = tab;
-      this.$emit('selectedTab', tab);
+      this.$emit('TabSelected', tab);
     },
   },
 };

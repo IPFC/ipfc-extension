@@ -1,7 +1,15 @@
 // import { addHighlightError } from './errorManager.js';
 // import { highlight, highlightsOrder } from './highlighter.js';
-import { clearPageHighlights } from '../called/removeHighlights';
+import { clearPageHighlights } from './removeHighlights';
 var $ = require('jquery');
+
+// Help app know which tab is active
+const updateActiveTab = function() {
+  chrome.runtime.sendMessage({ updateActiveTab: true });
+};
+$(document).on('click', updateActiveTab());
+$(document).ready(updateActiveTab());
+
 //
 // HIGHLIGHTER
 //
@@ -14,11 +22,11 @@ var DELIMITERS = {
 
 var HIGHLIGHT_CLASS = 'highlighter--highlighted';
 
-const highlightsOrder = function() {
+const getHighlightsOrder = function() {
   const highlightsInOrder = [];
   $('.' + HIGHLIGHT_CLASS).each(function() {
     // console.log('highlight order this', this);
-    highlightsInOrder.push(this.id);
+    if (!highlightsInOrder.includes(this.id)) highlightsInOrder.push(this.id);
   });
   // console.log('highlightsInOrder', highlightsInOrder);
   return highlightsInOrder;
@@ -58,7 +66,7 @@ const setupContextMenu = function() {
       const offsetTop = Math.round(target.offset().top);
       const offsetHeight = target[0].offsetHeight;
       const offsetLeft = target.offset().left;
-      console.log('offsetLeft, offsetHeight, offsetTop', offsetLeft, offsetHeight, offsetTop);
+      // console.log('offsetLeft, offsetHeight, offsetTop', offsetLeft, offsetHeight, offsetTop);
       chrome.runtime.sendMessage({
         highlightClicked: true,
         highlightId: id,
@@ -78,7 +86,7 @@ const setupContextMenu = function() {
     const $menu = $('#left-context-menu');
     const callback = function(e) {
       if ($(e.target).is('#delete-highlight')) {
-        console.log('delete clicked');
+        // console.log('delete clicked');
         deleteHighlight(window.location.href, clickedHighlightId);
         $menu.hide();
         $(document).off('click', callback);
@@ -101,7 +109,7 @@ const setupContextMenu = function() {
     return false;
   };
 
-  $(document).off('click');
+  // $(document).off('click');
   $(document).on('click', repositionAndShowLeftContextMenu);
 };
 
@@ -303,14 +311,44 @@ function escapeRegex(text) {
 // });
 
 chrome.runtime.onMessage.addListener(function(msg) {
-  if (msg.refresh) loadThisUrlsHighlights(window.location.href);
+  if (msg.refresh) {
+    // console.log('msg.refresh called, href', window.location.href);
+    refreshHighlights(window.location.href, true);
+  }
 });
-
-const storeHighlightsOrder = function(url) {
+const getCardsInOrder = function(cards, order) {
+  // console.log('cards, order', cards, order);
+  const orderedCards = [];
+  const orderlessCards = [];
+  for (const highlightId of order) {
+    for (const card of cards) {
+      if (card.highlight_id === highlightId) {
+        orderedCards.push(card);
+        break;
+      }
+    }
+  }
+  for (const card of cards) {
+    if (!order.includes(card.highlight_id)) {
+      orderlessCards.push(card);
+    }
+  }
+  return {
+    orderedCards: orderedCards,
+    orderlessCards: orderlessCards,
+  };
+};
+const storeHighlightsOrder = function(url, callback) {
   chrome.storage.local.get(['highlights'], items => {
     const highlights = items.highlights;
-    highlights[url].order = highlightsOrder();
+    highlights[url].order = getHighlightsOrder();
+    if (highlights[url].cards) {
+      const sortedCards = getCardsInOrder(highlights[url].cards, getHighlightsOrder());
+      highlights[url].orderedCards = sortedCards.orderedCards;
+      highlights[url].orderlessCards = sortedCards.orderlessCards;
+    }
     chrome.storage.local.set({ highlights });
+    if (callback) callback();
   });
 };
 
@@ -324,11 +362,11 @@ const storeHighlight = function(
   highlightId,
   callback
 ) {
-  console.log('storeHighlight called');
+  // console.log('storeHighlight called');
   chrome.storage.local.get(['highlights'], items => {
     let highlights = items.highlights;
     if (!highlights) highlights = {};
-    console.log('highlights', highlights);
+    // console.log('highlights', highlights);
     if (!highlights[url]) highlights[url] = {};
     highlights[url][highlightId] = {
       string: selection.toString(),
@@ -346,7 +384,7 @@ const storeHighlight = function(
       edited: new Date().getTime(),
       created: new Date().getTime(),
     };
-    console.log('highlights[url]', highlights[url]);
+    // console.log('highlights[url]', highlights[url]);
     // console.log('thisURLsHighlights', thisURLsHighlights);
     chrome.storage.local.set({ highlights });
     if (callback) callback();
@@ -354,20 +392,21 @@ const storeHighlight = function(
 };
 
 const storeCard = function(card, callback) {
-  console.log('store card. card', card);
+  // console.log('store card. card', card);
   const url = card.highlight_url;
   chrome.storage.local.get({ highlights: {} }, items => {
     let highlights = items.highlights;
     if (!highlights) highlights = {};
-    console.log('store-card, highlights', highlights);
+    // console.log('store-card, highlights', highlights);
     if (!highlights[url]) highlights[url] = {};
-    console.log(highlights[url]);
+    // console.log(highlights[url]);
 
     if (!highlights[url].cards) highlights[url].cards = [];
     highlights[url].cards.push(card);
-    console.log('card stored', highlights[url].cards);
+    // console.log('card stored', highlights[url].cards);
     chrome.storage.local.set({ highlights });
-    chrome.runtime.sendMessage({ newCardSaved: true, card: card });
+    chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true });
+    // refreshHighlights(url, true);
     if (callback) callback();
   });
 };
@@ -378,20 +417,36 @@ const loadThisUrlsHighlights = function(url, callback) {
     // console.log('load highlights items');
     const highlights = items.highlights;
     const thisURLsHighlights = highlights[url];
-    console.log('thisURLsHighlights', thisURLsHighlights);
+    // console.log('thisURLsHighlights', thisURLsHighlights);
     if (thisURLsHighlights !== undefined) {
       const highlightIds = Object.keys(thisURLsHighlights);
       // console.log('highlightIds', highlightIds);
       for (const key of highlightIds) {
-        if (key !== 'cards' && key !== 'order') loadHighlight(thisURLsHighlights[key]);
+        if (callback && highlightIds.indexOf(key) === highlightIds.length - 1) {
+          if (
+            key !== 'cards' &&
+            key !== 'order' &&
+            key !== 'orderedCards' &&
+            key !== 'orderlessCards'
+          ) {
+            loadHighlight(thisURLsHighlights[key], false, () => {
+              callback();
+            });
+          } else callback();
+        }
+        if (
+          key !== 'cards' &&
+          key !== 'order' &&
+          key !== 'orderedCards' &&
+          key !== 'orderlessCards'
+        )
+          loadHighlight(thisURLsHighlights[key]);
       }
     }
-    if (callback) callback();
   });
 };
-$(document).ready(loadThisUrlsHighlights(window.location.href));
 
-const loadHighlight = function(highlightVal, noErrorTracking) {
+const loadHighlight = function(highlightVal, noErrorTracking, callback) {
   // noErrorTracking is optional
   // console.log('load highlight called');
   // console.log('highlightVal', highlightVal);
@@ -410,6 +465,8 @@ const loadHighlight = function(highlightVal, noErrorTracking) {
     if (!noErrorTracking) {
       addHighlightError(highlightVal);
     }
+    if (callback) callback();
+
     return false;
   } else {
     const success = highlight(
@@ -422,6 +479,7 @@ const loadHighlight = function(highlightVal, noErrorTracking) {
     if (!noErrorTracking && !success) {
       addHighlightError(highlightVal);
     }
+    if (callback) callback();
     return success;
   }
 };
@@ -482,11 +540,11 @@ const deleteAllPageHighlights = function(url) {
 const deleteHighlight = function(url, id) {
   chrome.storage.local.get({ highlights: {} }, items => {
     const highlights = items.highlights;
-    console.log('delete highlights[url] before', highlights[url]);
+    // console.log('delete highlights[url] before', highlights[url]);
 
-    console.log('delete id;', id);
+    // console.log('delete id;', id);
     delete highlights[url][id];
-    console.log('delete highlights[url] after', highlights[url]);
+    // console.log('delete highlights[url] after', highlights[url]);
 
     const cards = highlights[url].cards;
     // console.log('cards before delete', cards);
@@ -499,15 +557,43 @@ const deleteHighlight = function(url, id) {
     // console.log('cards after', cards);
 
     chrome.storage.local.set({ highlights });
-    chrome.runtime.sendMessage({ highlightDeleted: true });
-    // window.location.reload();
-    clearPageHighlights(() => {
-      loadThisUrlsHighlights(url, () => {
-        storeHighlightsOrder(url);
-      });
-    });
+    // chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true });
+    window.location.reload();
+    // refreshHighlights(url, true);
   });
 };
+
+const refreshHighlights = function(url, refreshOrder) {
+  const refreshComplete = function(refreshOrder) {
+    if (refreshOrder) chrome.runtime.sendMessage({ orderRefreshed: true });
+    else chrome.runtime.sendMessage({ highlightsRefreshed: true });
+  };
+  if (refreshOrder) {
+    clearPageHighlights(() => {
+      // console.log('refresh order, url', url);
+      loadThisUrlsHighlights(url, () => {
+        storeHighlightsOrder(url, () => {
+          refreshComplete(true);
+        });
+      });
+    });
+  } else {
+    clearPageHighlights(() => {
+      loadThisUrlsHighlights(url, () => {
+        refreshComplete();
+      });
+    });
+  }
+};
+$(document).ready(refreshHighlights(window.location.href, true));
+
+chrome.runtime.onMessage.addListener(function(msg) {
+  if (msg.refreshHighlights) {
+    // console.log('refresh highlights, msg.url', msg.url);
+    if (msg.refreshOrder) refreshHighlights(msg.url, true);
+    else refreshHighlights(msg.url, false);
+  }
+});
 
 //
 // ERROR MANAGER
@@ -537,7 +623,7 @@ setInterval(() => {
     if (Date.now() - highlightError.errorTime > MAX_RETRY_TIME) {
       // Stop the search
       // failed, log out
-      console.log('error adding highlight: ', highlightError.highlight);
+      // console.log('error adding highlight: ', highlightError.highlight);
       highlightErrors.splice(idx, 1);
     } else {
       // Keep retrying

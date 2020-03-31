@@ -20,7 +20,7 @@ import {
   faCheck,
   // faTimes,
   faSync,
-  // faSpinner,
+  faSpinner,
   faExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 import {
@@ -44,7 +44,7 @@ library.add(
   faCheck,
   // faTimes,
   faSync,
-  // faSpinner
+  faSpinner,
   faExclamation
 );
 

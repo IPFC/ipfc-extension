@@ -1,29 +1,23 @@
 <template>
   <div id="sidebar-content-body" class="scroller" :class="windowSetting" :style="sidebarStyle">
-    <sidebar-header />
+    <sidebar-header @TabSelected="switchTab" />
     <b-container v-if="loaded" class="sidebar-content-main">
-      <b-row id="main-row">
-        <b-col v-if="!refreshingDeck" id="main-col">
-          <b-row id="title-row">
-            <b-col id="icon-col" cols="2" class="align-self-center ml-2">
-              <div id="icon" :style="{ backgroundColor: deck.icon_color }">
-                <p id="deck-abrev">
-                  <strong>{{ getTitleAbrev(deck.title) }}</strong>
-                </p>
-              </div>
-            </b-col>
-            <b-col id="text-col">
+      <b-row v-for="deck of decks" :key="deck.title" class="deck-row">
+        <!-- v-if="deck.title && deck.cards > 0 && !refreshingDeck"  -->
+        <b-col class="deck-col">
+          <b-row class="title-row">
+            <b-col class="title-text-col">
               <p class="text title">
-                {{ deck.title }}
+                {{ formatTitle(deck.title) }}
               </p>
               <p class="text card-count">
                 {{ deck.cards.length }} card{{ cardOrCards(deck.cards.length) }}
               </p>
-              <div id="underline"></div>
+              <div class="underline"></div>
             </b-col>
           </b-row>
-          <b-row id="cards-row" class="m-0">
-            <b-col id="cards-col" cols="12" style="padding: 0;">
+          <b-row class="cards-row m-0">
+            <b-col class="cards-col" cols="12" style="padding: 0;">
               <!-- id's need to start with letters -->
               <b-card
                 v-for="card in deck.cards"
@@ -82,26 +76,25 @@
         </b-col>
       </b-row>
     </b-container>
+    <div v-else class="spinner-div">
+      <font-awesome-icon icon="spinner" spin size="3x" class="align-middle"></font-awesome-icon>
+    </div>
   </div>
 </template>
 
 <script>
 import { BCard, BImgLazy, BCardText } from 'bootstrap-vue';
-import throttle from 'lodash/throttle';
+// import throttle from 'lodash/throttle';
+import { isEqual } from 'lodash/core';
 import SidebarHeader from '../components/SidebarHeader.vue';
-var VueScrollTo = require('vue-scrollto');
-var ScrollToOptions = {
+const axios = require('axios');
+const VueScrollTo = require('vue-scrollto');
+const ScrollToOptions = {
   container: '#sidebar-content-body',
   easing: 'ease-in',
   offset: -200,
   force: true,
   cancelable: true,
-  // onStart: function(element) {
-  // },
-  // onDone: function(element) {
-  // },
-  // onCancel: function() {
-  // },
   x: false,
   y: true,
 };
@@ -110,13 +103,12 @@ export default {
   data() {
     return {
       windowSetting: '',
+      selectedTab: 'page-mine',
       sidebarStyle: {},
-      runInNewWindow: false,
       loaded: false,
+      makingApiCall: false,
       refreshingDeck: false,
-      deck: {
-        cards: [],
-      },
+      decks: [],
       clickedCardId: '',
     };
   },
@@ -128,11 +120,12 @@ export default {
       that.sidebarWinId = win.id;
     });
     chrome.runtime.onMessage.addListener(function(msg) {
-      // console.log(msg);
+      // resize function
       if (msg.sidebarResize) {
         const updateData = msg.updateData;
         that.resizeInNewWindow(that.sidebarWinId, updateData);
       }
+      // scroll to function
       if (msg.highlightClicked) {
         // console.log('highlight clicked msg', msg);
         let cardId;
@@ -143,81 +136,346 @@ export default {
               cardId = card.card_id;
             }
           }
-          // console.log('cardId', cardId);
-          // this.clickedHighlightId = msg.highlightId;
-          // const element = document.querySelector('#card-id' + cardId);
-          // console.log('element', element);
           VueScrollTo.scrollTo('#card-id' + cardId, 300, ScrollToOptions);
           that.clickedCardId = cardId;
         });
       }
-      if (msg.newCardSaved) {
-        // console.log('newcardsaved', msg);
-        that.deck.cards.push(msg.card);
-      }
-      if (msg.highlightDeleted) {
-        console.log('highlightDeleted recieved');
-        throttle(that.refreshDeck(), 2000);
-      }
-    });
-    chrome.storage.local.get(['runInNewWindow', 'user_collection', 'jwt', 'highlights'], function(
-      items
-    ) {
-      that.runInNewWindow = items.runInNewWindow;
-      that.user_collection = items.user_collection;
-      that.jwt = items.jwt;
-      const deck = {
-        title: 'Cards',
-        icon_color: 'blue',
-        cards: [],
-      };
-      console.log('initial load, items.highlights', items.highlights);
-      that.highlights = items.highlights;
-
-      // this is getting all cards of all urls...
-      for (const url of Object.keys(items.highlights)) {
-        for (const card of items.highlights[url].cards) {
-          deck.cards.push(card);
+      if (msg.activeTabChanged) {
+        if (that.selectedTab === 'page-mine') {
+          that.loadPageMine();
+        } else if (that.selectedTab === 'page-all') {
+          that.loadpageAll();
         }
       }
-      that.deck = deck;
-      console.log('deck', deck);
-      that.loaded = true;
+      if (msg.orderRefreshed) {
+        chrome.storage.local.get(['highlights'], function(items) {
+          if (!isEqual(items.highlights, that.highlights)) {
+            // console.log('orderRefreshed');
+            if (that.selectedTab === 'page-mine') {
+              that.loadPageMine();
+            } else if (that.selectedTab === 'mine-all') {
+              that.loadMineAll();
+            } else if (that.selectedTab === 'page-all') {
+              that.loadpageAll();
+            }
+          }
+        });
+      }
     });
   },
   mounted() {
     const that = this;
-    chrome.storage.local.get(['runInNewWindow'], function(items) {
-      if (!items.runInNewWindow) {
-        // console.log('running in this window');
-        that.resizeInThisWindow();
-      } else {
-        // console.log('running in new window');
-        that.windowSetting = 'in-other-window';
+    chrome.storage.local.get(['runInNewWindow', 'user_collection', 'jwt'], function(items) {
+      that.jwt = items.jwt;
+      if (!that.checkJwt) alert('Please log in');
+      else {
+        if (!items.runInNewWindow) {
+          // console.log('running in this window');
+          that.resizeInThisWindow();
+        } else {
+          // console.log('running in new window');
+          that.windowSetting = 'in-other-window';
+        }
+        that.user_collection = items.user_collection;
+        if (that.selectedTab === 'mine-all') {
+          that.loadMineAll(true);
+        } else if (that.selectedTab === 'page-mine') {
+          that.loadPageMine(true);
+        } else if (that.selectedTab === 'page-all') {
+          that.loadpageAll(true);
+        }
       }
     });
   },
   methods: {
-    refreshDeck: throttle(function() {
-      this.refreshingDeck = true;
-      // getting all cards for all urls now
-      // won't refresh deck title for now
-      const that = this;
-      that.deck.cards = [];
-      chrome.storage.local.get(['highlights'], function(items) {
-        that.highlights = items.highlights;
-        for (const url of Object.keys(items.highlights)) {
-          for (const card of items.highlights[url].cards) {
-            console.log(items.highlights[url].cards);
-            // so this is all URLS mode. we don't care about order, but maybe we should put a divider with the site name in
-            // for one URL mode, we need to loop through
-            that.deck.cards.push(card);
+    loadMineAll(startingLoad) {
+      const purgeOthersHighlights = function(that) {
+        that.loaded = false;
+        chrome.storage.local.get(['highlights'], function(items) {
+          const highlights = items.highlights;
+          that.highlights = highlights;
+          const userId = that.user_collection.user_id;
+          const purgedHighlights = {};
+          for (const url of Object.keys(highlights)) {
+            const original = highlights[url];
+            const purged = {
+              cards: [],
+              orderedCards: [],
+              orderlessCards: [],
+              order: JSON.parse(JSON.stringify(original.order)),
+            };
+            for (const key of Object.keys(original)) {
+              if (
+                original[key].user_id === userId &&
+                key !== 'cards' &&
+                key !== 'orderedCards' &&
+                key !== 'orderlessCards' &&
+                key !== 'order'
+              ) {
+                purged[key] = original[key];
+              }
+            }
+            for (const card of original.cards) {
+              if (card.user_id === userId) {
+                purged.cards.push(card);
+              }
+            }
+            for (const card of original.orderedCards) {
+              if (card.user_id === userId) {
+                purged.orderedCards.push(card);
+              }
+            }
+            for (const card of original.orderlessCards) {
+              if (card.user_id === userId) {
+                purged.orderlessCards.push(card);
+              }
+            }
+            purgedHighlights[url] = purged;
           }
-          console.log('refresh, deck', that.deck);
+          loadDecks(that, JSON.parse(JSON.stringify(purgedHighlights)));
+        });
+      };
+      const loadDecks = function(that, highlights) {
+        // console.log(highlights);
+        const decks = [];
+        for (const url of Object.keys(highlights)) {
+          if (highlights[url].cards.length > 0) {
+            decks.push({
+              title: url,
+              cards: highlights[url].cards,
+            });
+          }
         }
+        that.decks = decks;
+        that.loaded = true;
+      };
+      purgeOthersHighlights(this);
+    },
+    isDecksEqual(decks1, decks2) {
+      // console.log('decks1, decks2', decks1, decks2);
+      // Does not care about order
+      if (decks1.length !== decks2.length) return false;
+      const titles = [];
+      for (const deck2 of decks2) {
+        titles.push(deck2.title);
+      }
+      for (const deck1 of decks1) {
+        if (!titles.includes(deck1.title)) return false;
+        for (const deck2 of decks2) {
+          if (deck1.title === deck2.title) {
+            if (deck1.cards.length !== deck2.cards.length) return false;
+            for (const card1 of deck1.cards) {
+              for (const card2 of deck2.cards) {
+                if (card1.card_id === card2.card_id) {
+                  if (
+                    card1.front_text !== card2.front_text ||
+                    card1.back_text !== card2.back_text ||
+                    card1.front_rich_text !== card2.front_rich_text ||
+                    card1.back_rich_text !== card2.back_rich_text
+                  ) {
+                    return false;
+                  }
+                }
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+      return true;
+    },
+    compareAndUpdateDecks(myPurgedDecks, that) {
+      if (
+        !that.isDecksEqual(
+          JSON.parse(JSON.stringify(myPurgedDecks)),
+          JSON.parse(JSON.stringify(that.decks))
+        )
+      ) {
+        // console.log('unequal');
+        that.loaded = false;
+        that.decks = myPurgedDecks;
+        // console.log(that.decks);
+        that.loaded = true;
+      } else {
+        // console.log('equal');
+        that.loaded = true;
+      }
+    },
+    getActiveTab(callback) {
+      const that = this;
+      chrome.storage.local.get(['lastActiveTabId', 'lastActiveTabUrl'], function(items) {
+        that.lastActiveTabId = items.lastActiveTabId;
+        that.lastActiveTabUrl = items.lastActiveTabUrl;
+        if (callback) callback();
       });
+    },
+    loadPageMine() {
+      // console.log('loadPageMine called');
+      const setDecks = function(thisUrlsHighlights, url, that) {
+        that.decks = [
+          { title: url, cards: thisUrlsHighlights.orderedCards },
+          { title: 'Cards without a highlight', cards: thisUrlsHighlights.orderlessCards },
+        ];
+        // console.log('decks set, decks', that.decks);
+        that.loaded = true;
+      };
+      const purgeOtherHighlightsFromThisUrl = function(that) {
+        that.loaded = false;
+        chrome.storage.local.get(['highlights', 'lastActiveTabUrl'], function(items) {
+          const highlights = items.highlights;
+          that.highlights = highlights;
+          const userId = that.user_collection.user_id;
+          const url = items.lastActiveTabUrl;
+          const original = highlights[url];
+          // console.log('url, highlights, original', url, highlights, original);
+          const purged = {
+            cards: [],
+            orderedCards: [],
+            orderlessCards: [],
+            order: JSON.parse(JSON.stringify(original.order)),
+          };
+          for (const key of Object.keys(original)) {
+            if (
+              original[key].user_id === userId &&
+              key !== 'cards' &&
+              key !== 'orderedCards' &&
+              key !== 'orderlessCards' &&
+              key !== 'order'
+            ) {
+              purged[key] = original[key];
+            }
+          }
+          for (const card of original.cards) {
+            if (card.user_id === userId) {
+              purged.cards.push(card);
+            }
+          }
+          for (const card of original.orderedCards) {
+            if (card.user_id === userId) {
+              purged.orderedCards.push(card);
+            }
+          }
+          for (const card of original.orderlessCards) {
+            if (card.user_id === userId) {
+              purged.orderlessCards.push(card);
+            }
+          }
+          if (!isEqual(purged, original)) {
+            // console.log('unequal after purge');
+            highlights[url] = purged;
+            chrome.storage.local.set({ highlights: highlights });
+            chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true });
+          } else setDecks(purged, url, that);
+        });
+      };
+      purgeOtherHighlightsFromThisUrl(this);
+    },
+
+    loadpageAll(url) {
+      // load from mineAndOthers first. if that doesn't exist first load mine from local,
+      // then make API call (add spinner) and add when done
+      // then save to local, refresh page, regenerate order, and reorg sidebar based on order
+
+      // first pass, load from local
+      const loadAllfromLocal = function(callback) {
+        if (!this.mineAndOthersDecks || this.mineAndOthersDecks === {}) {
+          const sortedCards = this.getCardsInOrder(
+            this.highlights[this.lastActiveTabUrl].cards,
+            this.highlights[this.lastActiveTabUrl].order
+          );
+          this.mineAndOthersDecks = [
+            {
+              title: this.lastActiveTabUrl,
+              icon_color: this.generateRandomHslaColor(),
+              cards: sortedCards.orderedCards,
+            },
+            {
+              title: 'Unordered Cards ' + this.lastActiveTabUrl,
+              icon_color: this.generateRandomHslaColor(),
+              cards: sortedCards.unorderedCards,
+            },
+          ];
+        } else {
+          let deckExists = 0;
+          let deck;
+          let unorderedDeck = {};
+          for (const _deck of this.mineAndOthersDecks) {
+            if (_deck.title === this.lastActiveTabUrl) {
+              deck = _deck;
+              deckExists++;
+            }
+            if (_deck.title === 'Unordered Cards ' + this.lastActiveTabUrl) {
+              unorderedDeck = deck;
+            }
+          }
+          if (deckExists === 0) {
+            const deck = {
+              title: this.lastActiveTabUrl,
+              icon_color: this.generateRandomHslaColor(),
+              cards: this.highlights[this.lastActiveTabUrl].cards,
+            };
+            this.mineAndOthersDecks.push(deck);
+          }
+          if (unorderedDeck !== {}) this.decks = [deck, unorderedDeck];
+          else this.decks = [deck];
+        }
+        this.loaded = true;
+        if (callback) callback();
+      };
+      this.loaded = false;
+      this.getActiveTab(() => {
+        loadAllfromLocal();
+      });
+      // second pass, get most recent from API
+      // const ApiHighlights = this.ApiGetpageAll(this.lastActiveTabUrl);
+      // then update highlights, update order, and finally update this.decks.
+      // make sure to check that its actually changed even before calling loading=false
+
+      // change
+      const reloadUponUpdatedOrder = function() {
+        const that = this;
+        chrome.runtime.onMessage.addListener(function(msg) {
+          if (msg.orderRefreshed && that.selectedTab === 'page-mine') {
+            chrome.storage.local.get(['highlights'], function(items) {
+              that.highlights = items.highlights;
+              loadJustMyHighlightsIntoDeck(that);
+            });
+          }
+        });
+      };
+    },
+    ApiGetpageAll(url) {
+      return axios();
+    },
+    resetLocalStorageAndRefreshHighlights() {},
+    generateRandomHslaColor() {
+      // round to an interval of 20, 0-360
+      const hue = Math.round((Math.random() * 360) / 20) * 20;
+      const color = `hsla(${hue}, 100%, 50%, 1)`;
+      return color;
+    },
+    switchTab(tab) {
+      this.selectedTab = tab;
+      if (tab === 'mine-all') {
+        this.loadMineAll();
+      } else if (tab === 'page-mine') {
+        this.loadPageMine();
+      } else if (tab === 'page-all') {
+        this.loadpageAll();
+      }
+    },
+    refreshDeck() {
+      this.refreshingDeck = true;
+      if (this.selectedTab === 'mine-all') {
+        this.loadMineAll(true);
+      } else if (this.selectedTab === 'page-mine') {
+        this.loadPageMine(true);
+      } else if (this.selectedTab === 'page-all') {
+        this.loadpageAll(true);
+      }
       this.refreshingDeck = false;
-    }, 1000),
+    },
     editCard(card) {
       chrome.runtime.sendMessage({
         openEditor: true,
@@ -234,20 +492,12 @@ export default {
         return 's';
       }
     },
-    getTitleAbrev(title) {
-      // There shouldn't be any empty title decks, but we can leave this validation here just in case
-      if (title === '') {
-        return '';
-      } else {
-        let abrev;
-        if (title.includes(' ')) {
-          const split = title.split(' ')[0];
-          abrev = split[0].charAt(0) + split[1].charAt(0);
-        } else {
-          abrev = title.charAt(0) + title.charAt(1);
-        }
-        return abrev;
-      }
+    formatTitle(title) {
+      if (title.includes('http://')) {
+        return title.replace('http://', '');
+      } else if (title.includes('https://')) {
+        return title.replace('https://', '');
+      } else return title;
     },
     resizeInNewWindow(winId, updateData) {
       // if was on the left originally
@@ -340,6 +590,13 @@ export default {
 }
 .in-this-window {
 }
+.spinner-div {
+  height: calc(100% - 85px);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .card-unfocused {
   box-shadow: 0px 0px 15px 5px rgba(0, 0, 0, 0.1);
   -webkit-transform: scale(1, 1);
@@ -350,8 +607,8 @@ export default {
 }
 .card-focused {
   box-shadow: 0px 0px 20px 10px rgba(0, 0, 0, 0.3);
-  -webkit-transform: scale(1.07, 1);
-  transform: scale(1.07, 1);
+  -webkit-transform: scale(1.05, 1);
+  transform: scale(1.05, 1);
   transition: transform 0.15s ease-in-out;
   margin: 0px 10px;
 }
@@ -389,29 +646,31 @@ export default {
   color: black;
 }
 .sidebar-content-main {
-  margin-top: 10px;
+  margin: 0;
   overflow-y: auto;
   padding: 0px 0px 100px 0px;
 }
 .idebar-content-main::-webkit-scrollbar {
   width: 0em;
 }
-#main-row {
-  margin: 0;
+.deck-row {
+  margin: 10px 0 0 0;
 }
-#main-col {
+.deck-col {
   margin: auto;
   max-width: 600px;
   padding: 0px;
 }
-#title-row {
+.title-row {
   width: 100%;
+  margin: 0;
 }
-#text-col {
-  padding: 0px 0px 10px 20px;
-  margin: 0px 0px 0px 20px;
+.title-text-col {
+  padding: 10px;
+  margin: 0;
+  overflow-wrap: break-word;
 }
-#underline {
+.underline {
   position: absolute;
   bottom: 0px;
   left: 20px;
@@ -419,29 +678,10 @@ export default {
   width: 75%;
   background-color: rgba(0, 0, 0, 0.5);
 }
-#edit-col {
+.edit-col {
   padding: 0;
   margin: auto;
   width: 10px;
-}
-#icon-col {
-  width: 50px;
-  height: 50px;
-}
-#icon:hover {
-  cursor: pointer;
-}
-#icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 23px;
-  text-align: center;
-  font-size: 28px;
-  color: white;
-  margin: auto;
-}
-#deck-abrev {
-  margin: 0;
 }
 .text {
   padding: 0;
