@@ -39,9 +39,48 @@
                 :options="editorOption"
               ></quill-editor>
             </b-container>
-            <!-- <p id="counter">{{ cardNumberOutOfDeck }}</p> -->
+            <p id="counter">{{ cardNumberOutOfDeck }}</p>
             <br />
-            <b-container id="tags-bottom" class="tag-chooser">
+            <b-container class="tag-chooser">
+              <p class="d-inline tags-label">
+                In deck:
+                <b-button class="add-btn">
+                  <font-awesome-icon
+                    v-if="!addingDeck"
+                    class="d-inline add-icon"
+                    color="white"
+                    size="1x"
+                    icon="plus-circle"
+                    @click="toggleAddingDeck()"
+                  />
+                  <font-awesome-icon
+                    v-if="addingDeck"
+                    class="d-inline add-icon"
+                    color="white"
+                    size="1x"
+                    icon="plus-circle"
+                    @click="addNewDeck()"
+                  />
+                  <b-form-input
+                    v-if="addingDeck"
+                    v-model="newDeckTitle"
+                    class="d-inline tag-input"
+                    @keyup.enter.prevent="addNewDeck()"
+                  ></b-form-input>
+                </b-button>
+              </p>
+              <b-button class="tag-style-button green-btn d-inline">{{ deck.title }}</b-button>
+              <br />
+              <b-button
+                v-for="unincludedDeck in unincludedDecks"
+                :key="unincludedDeck.deck_id"
+                class="tag-style-button white-btn d-inline"
+                @click="switchDeck(unincludedDeck.deck_id)"
+                >{{ unincludedDeck.title }}</b-button
+              >
+            </b-container>
+            <br />
+            <b-container class="tag-chooser page-bottom">
               <p class="d-inline tags-label">
                 Tags:
                 <b-button class="add-btn">
@@ -77,13 +116,13 @@
                 >{{ tag }}</b-button
               >
               <br />
-              <!-- <b-button
-              v-for="tag in unincludedTags"
-              :key="tag"
-              class="tag-style-button white-btn d-inline"
-              @click="addTagToCard(tag)"
-              >{{ tag }}</b-button
-            > -->
+              <b-button
+                v-for="tag in unincludedTags"
+                :key="tag"
+                class="tag-style-button white-btn d-inline"
+                @click="addTagToCard(tag)"
+                >{{ tag }}</b-button
+              >
             </b-container>
           </b-col>
         </b-row>
@@ -101,6 +140,11 @@
                     <font-awesome-icon size="2x" style="height: 2em" icon="times" />
                   </b-button>
                 </b-col>
+                <b-col class="btn-col">
+                  <b-button class="btn-circle btn-md" @click="deleteCard()">
+                    <font-awesome-icon size="2x" style="height: 2em" icon="trash-alt" />
+                  </b-button>
+                </b-col>
               </b-row>
             </b-container>
           </b-col>
@@ -114,12 +158,12 @@
 /* eslint-disable vue/valid-v-on */
 import { BFormInput } from 'bootstrap-vue';
 import { Quill, quillEditor } from 'vue-quill-editor';
+import { isEmpty } from 'lodash';
 import 'quill/dist/quill.snow.css';
 import imageUpload from 'quill-plugin-image-upload';
 import defaultCollection from '../assets/defaultCollection.json';
-import { storeCard } from '../highlighter/highlighter.js';
 
-// const uuidv4 = require('uuid/v4');
+const uuidv4 = require('uuid/v4');
 const axios = require('axios');
 const FormData = require('form-data');
 Quill.register('modules/imageUpload', imageUpload);
@@ -148,7 +192,14 @@ export default {
       initialDeckState: null,
       addingTag: false,
       newTagTitle: '',
-
+      addingDeck: false,
+      newDeckTitle: '',
+      deck: {
+        title: '',
+        edited: 0,
+        deck_id: '',
+        card_count: 0,
+      },
       card: {
         card_tags: ['Daily Review'],
         front_text: '',
@@ -208,6 +259,7 @@ export default {
           },
         },
       },
+      jwt: '',
     };
   },
   computed: {
@@ -215,21 +267,24 @@ export default {
       // this now rides on review deck in getters
       const allTagsList = this.user_collection.all_card_tags;
       const unincludedTagsList = [];
-      for (const tag of allTagsList) {
-        if (!this.card.card_tags.includes(tag)) {
-          unincludedTagsList.push(tag);
+      if (!isEmpty(allTagsList))
+        for (const tag of allTagsList) {
+          if (!this.card.card_tags.includes(tag)) {
+            unincludedTagsList.push(tag);
+          }
         }
-      }
       return unincludedTagsList;
     },
-    cardNumberOutOfDeck() {
-      const totalCards = this.currentDeck.cards.length;
-      const currentCardNumber = this.cardToEditIndex + 1;
-      let title = this.currentDeck.title;
-      if (this.currentDeck.title === undefined) {
-        title = 'Review Deck';
+    unincludedDecks() {
+      const unincludedDecks = [];
+      for (const deck of this.decks_meta) {
+        if (deck.deck_id !== this.deck.deck_id) unincludedDecks.push(deck);
       }
-      return `Card ${currentCardNumber}/${totalCards} in: ${title}`;
+      return unincludedDecks;
+    },
+    cardNumberOutOfDeck() {
+      const totalCards = this.deck.card_count + 1;
+      return `Card ${totalCards}/${totalCards} in: ${this.deck.title}`;
     },
   },
   watch: {},
@@ -242,15 +297,6 @@ export default {
   },
   mounted() {
     this.loadStorage();
-    // console.log('adding listener');
-    // const that = this;
-    // chrome.runtime.onMessage.addListener(function(msg) {
-    //   // console.log('msg', msg);
-    //   if (msg.showEditor) {
-    //     // console.log('showEditor recieved');
-
-    //   }
-    // });
   },
   methods: {
     setCard(cardData) {
@@ -264,26 +310,69 @@ export default {
         user_id: cardData.user_id,
         highlight_url: cardData.highlight_url,
         highlight_id: cardData.highlight_id,
+        edited: new Date().getTime(),
+      };
+      if (this.lastUsedDecks[cardData.highlight_url]) {
+        for (const deck of this.decks_meta) {
+          if (deck.title === this.lastUsedDecks[cardData.highlight_url]) {
+            this.deck = deck;
+            return null;
+          }
+        }
+        // if the title was changed, or not found
+        this.setDeck(this.formatTitle(cardData.highlight_url));
+      } else this.setDeck(this.formatTitle(cardData.highlight_url));
+    },
+    setDeck(deckTitle) {
+      for (const deck of this.decks_meta) {
+        if (deck.title === deckTitle) {
+          this.deck = deck;
+          return null;
+        }
+      }
+      this.deck = {
+        cards: [this.card],
+        user_id: this.user_collection.user_id,
+        deck_id: uuidv4(),
+        deck_tags: [],
+        description: null,
+        editable_by: 'only_me',
+        edited: new Date().getTime(),
+        lang_back: 'en',
+        lang_front: 'en',
+        card_count: 0,
+        title: deckTitle,
+        visibility: 'public',
+        icon_color: this.generateRandomHslaColor(),
       };
     },
     loadStorage() {
       const that = this;
       chrome.storage.local.get(
-        ['user_collection', 'pinata_keys', 'newCardData', 'toEditCardData'],
+        [
+          'user_collection',
+          'lastUsedDecks',
+          'pinata_keys',
+          'newCardData',
+          'toEditCardData',
+          'decks_meta',
+          'jwt',
+        ],
         function(items) {
+          chrome.storage.sync.get(['serverUrl'], syncItems => {
+            that.serverUrl = syncItems.serverUrl;
+          });
           if (!items.user_collection) {
             window.close();
             that.cancelled = true;
             return null;
           }
+          that.lastUsedDecks = items.lastUsedDecks ? items.lastUsedDecks : {};
           that.user_collection = items.user_collection;
+          that.decks_meta = items.decks_meta;
+          that.jwt = items.jwt;
           that.editorOption.modules.toolbar =
             items.user_collection.webapp_settings.text_editor.options.toolbar;
-          // console.log(
-          //   'items.toEditCardData, items.newCardData',
-          //   items.toEditCardData,
-          //   items.newCardData
-          // );
           if (items.toEditCardData) {
             if (items.toEditCardData.time > items.newCardData.time)
               that.setCard(items.toEditCardData.card);
@@ -294,6 +383,15 @@ export default {
       );
     },
     cancel() {
+      this.cancelled = true;
+      window.close();
+    },
+    deleteCard() {
+      chrome.runtime.sendMessage({
+        deleteCard: true,
+        url: this.card.highlight_url,
+        card: this.card,
+      });
       this.cancelled = true;
       window.close();
     },
@@ -325,15 +423,6 @@ export default {
         this.$refs.myQuillEditorBack.quill.setSelection(length);
       });
     },
-    // findCardsDeck: function(cardId) {
-    //   for (const deck of this.decks) {
-    //     for (const card of deck.cards) {
-    //       if (card.card_id === cardId) {
-    //         return deck.deck_id;
-    //       }
-    //     }
-    //   }
-    // },
     doneCheck: function() {
       if (!this.unChanged) {
         this.submit(this.card);
@@ -361,6 +450,7 @@ export default {
     },
     submit(card) {
       // this focuses both sides so that quill is showing
+      card.edited = new Date().getTime();
       this.backFocused = true;
       this.frontFocused = true;
       this.$nextTick(() => {
@@ -375,29 +465,33 @@ export default {
         this.submitStep2(card, quill);
       });
     },
-    async submitStep2(cardInput, quill) {
+    submitStep2: async function(cardInput, quill) {
       const card = await this.getQuillData(cardInput, quill);
-      // deck_id needs to be resolved
-      const closeWindow = () => {
-        window.close();
-      };
-      storeCard(card, closeWindow);
+      if (card.card_tags.includes('Daily Review')) this.addCardToSchedule(card.card_id);
+      chrome.runtime.sendMessage({ storeCard: true, card: card });
+      if (this.deck.card_count === 0) {
+        // if it was a new deck:
+        this.deck.card_count = 1;
+        this.postNewDeck();
+      } else this.putDeck();
+      this.lastUsedDecks[card.highlight_url] = this.deck.title;
+      chrome.storage.local.set({ lastUsedDecks: this.lastUsedDecks });
       this.cancelled = true;
       // window.close();
       return true;
     },
     // use later for dropdown menu, copy to other deck
-    addCardToDeck: function(deckId) {
-      // const card = JSON.parse(JSON.stringify(this.card));
-      // const addData = { deck_id: deckId, card: card };
-      // this.$store.commit('addCard', addData);
+    switchDeck(deckId) {
+      for (const deck of this.decks_meta) {
+        if (deck.deck_id === deckId) this.deck = deck;
+      }
     },
-    removeTagFromCard: function(tag) {
+    removeTagFromCard(tag) {
       const card = JSON.parse(JSON.stringify(this.card));
       card.card_tags.splice(card.card_tags.indexOf(tag), 1);
       this.submit(card);
     },
-    addTagToCard: function(tag) {
+    addTagToCard(tag) {
       const card = JSON.parse(JSON.stringify(this.card));
       if (tag === 'Daily Review') {
         // this.$store.commit('addCardToSchedule', card.card_id);
@@ -408,6 +502,9 @@ export default {
     toggleAddingTag: function() {
       this.addingTag = !this.addingTag;
     },
+    toggleAddingDeck: function() {
+      this.addingDeck = !this.addingDeck;
+    },
     // new
     moveCard: function() {},
     copyCardToNewDeck: function() {},
@@ -417,23 +514,84 @@ export default {
       if (this.newDeckTitle === '' || this.newDeckTitle === ' ') {
         this.toggleAddingDeck();
       } else {
-        // const emptyDeck = {
-        //   cards: [this.card],
-        //   created_by: this.user_collection.user_id,
-        //   deck_id: uuidv4(),
-        //   deck_tags: [],
-        //   description: null,
-        //   editable_by: 'only_me',
-        //   edited: Math.round(new Date().getTime()),
-        //   lang_back: 'en',
-        //   lang_front: 'en',
-        //   term_count: 1,
-        //   title: this.newDeckTitle,
-        //   visibility: 'public',
-        //   icon_color: this.generateRandomHslaColor(),
-        // };
-        // this.$store.commit('addDeck', emptyDeck);
+        const emptyDeck = {
+          cards: [this.card],
+          user_id: this.user_collection.user_id,
+          deck_id: uuidv4(),
+          deck_tags: [],
+          description: null,
+          editable_by: 'only_me',
+          edited: new Date().getTime(),
+          lang_back: 'en',
+          lang_front: 'en',
+          card_count: 0,
+          title: this.newDeckTitle,
+          visibility: 'public',
+          icon_color: this.generateRandomHslaColor(),
+        };
+        this.decks_meta.push(emptyDeck);
+        this.deck = emptyDeck;
+        this.toggleAddingDeck();
         this.newDeckTitle = '';
+      }
+    },
+    postNewDeck: async function() {
+      const options = {
+        url: this.serverUrl + '/post_deck',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': this.jwt,
+        },
+        method: 'POST',
+        data: this.deck,
+      };
+      let result;
+      await axios(options)
+        .then(response => {
+          result = response.data;
+          console.log('new deck posted, result: ', result);
+        })
+        .catch(function(err) {
+          throw new Error(err);
+        });
+    },
+    putDeck: async function() {
+      const options = {
+        url: this.serverUrl + '/put_deck',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': this.jwt,
+        },
+        method: 'PUT',
+        data: this.deck,
+      };
+      let result;
+      await axios(options)
+        .then(response => {
+          result = response.data;
+          console.log('deck PUT, result: ', result);
+        })
+        .catch(function(err) {
+          throw new Error(err);
+        });
+    },
+    addCardToSchedule(cardId) {
+      let dupCount = 0;
+      for (const scheduleItem of this.user_collection.schedule.list) {
+        if (scheduleItem.card_id === cardId) {
+          dupCount++;
+          break;
+        }
+      }
+      if (dupCount === 0) {
+        this.user_collection.schedule.list.push({
+          card_id: cardId,
+          level: 0,
+          due: new Date().getTime(),
+          last_interval: null,
+        });
+        this.user_collection.schedule.edited = new Date().getTime();
+        chrome.storage.local.set({ user_collection: this.user_collection });
       }
     },
     generateRandomHslaColor: function() {
@@ -458,6 +616,21 @@ export default {
         this.newTagTitle = '';
         this.toggleAddingTag();
       }
+    },
+    formatTitle(title) {
+      let frontTrunc;
+      if (!title.includes('http://') && !title.includes('https://')) frontTrunc = title;
+      else {
+        if (title.includes('http://')) {
+          frontTrunc = title.replace('http://', '');
+        } else if (title.includes('https://')) {
+          frontTrunc = title.replace('https://', '');
+        }
+      }
+      if (frontTrunc.includes('/')) {
+        const backTrunc = frontTrunc.split('/');
+        return backTrunc[0];
+      } else return frontTrunc;
     },
   },
 };
@@ -583,10 +756,11 @@ export default {
   background-color: white;
 }
 
-#tags-bottom {
+.page-bottom {
   margin-bottom: 60px;
 }
 .add-btn {
+  border: none;
   border-radius: 10px;
   background-color: grey;
   padding: 0px 0px;

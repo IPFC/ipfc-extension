@@ -1,4 +1,6 @@
-const resize = function() {
+window.addEventListener('focus', resize());
+
+function resize() {
   // console.log('resize called');
   const updateData = {
     mainWinLeft: window.screenLeft,
@@ -7,8 +9,9 @@ const resize = function() {
   updateData.height = window.outerHeight;
   updateData.top = window.screenTop;
   // check in sidebar if bar had been on the right or left, the determine top and left
-  chrome.runtime.sendMessage({ sidebarResize: true, updateData: updateData });
-};
+  if (!window.location.href.startsWith('chrome-extension'))
+    chrome.runtime.sendMessage({ sidebarResize: true, updateData: updateData });
+}
 
 var oldX = window.screenX;
 var oldY = window.screenY;

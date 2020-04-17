@@ -23,10 +23,7 @@ import {
   faSpinner,
   faExclamation,
 } from '@fortawesome/free-solid-svg-icons';
-import {
-  FontAwesomeIcon,
-  // FontAwesomeLayers
-} from '@fortawesome/vue-fontawesome';
+import { FontAwesomeIcon, FontAwesomeLayers } from '@fortawesome/vue-fontawesome';
 
 library.add(
   // faMinusCircle,
@@ -49,10 +46,7 @@ library.add(
 );
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
-Vue.component(
-  'font-awesome-layers'
-  // FontAwesomeLayers
-);
+Vue.component('font-awesome-layers', FontAwesomeLayers);
 
 Vue.use(LayoutPlugin);
 Vue.component('b-button', BButton);
@@ -61,23 +55,30 @@ global.browser = require('webextension-polyfill');
 Vue.prototype.$browser = global.browser;
 
 // need this for creating app when filling in a content_script
-chrome.storage.local.get(['runInNewWindow'], function(items) {
-  if (!items.runInNewWindow) {
-    const app = document.createElement('div');
-    app.id = 'app';
-    document.body.prepend(app);
-    /* eslint-disable no-new */
-    new Vue({
-      el: '#app',
-      // store,
-      render: h => h(App),
-    });
-  } else {
-    /* eslint-disable no-new */
-    new Vue({
-      el: '#app',
-      // store,
-      render: h => h(App),
-    });
-  }
+// chrome.storage.local.get(['runInNewWindow'], function(items) {
+//   if (!items.runInNewWindow) {
+//     const app = document.createElement('div');
+//     app.id = 'app';
+//     document.body.prepend(app);
+//     /* eslint-disable no-new */
+//     new Vue({
+//       el: '#app',
+//       // store,
+//       render: h => h(App),
+//     });
+//   } else {
+//     /* eslint-disable no-new */
+//     new Vue({
+//       el: '#app',
+//       // store,
+//       render: h => h(App),
+//     });
+//   }
+// });
+
+/* eslint-disable no-new */
+new Vue({
+  el: '#app',
+  // store,
+  render: h => h(App),
 });

@@ -1,14 +1,22 @@
 // import { addHighlightError } from './errorManager.js';
 // import { highlight, highlightsOrder } from './highlighter.js';
+import { isEmpty } from 'lodash';
 import { clearPageHighlights } from './removeHighlights';
 var $ = require('jquery');
-
 // Help app know which tab is active
 const updateActiveTab = function() {
   chrome.runtime.sendMessage({ updateActiveTab: true });
 };
 $(document).on('click', updateActiveTab());
 $(document).ready(updateActiveTab());
+
+// var syncing = false;
+// chrome.runtime.onMessage.addListener(function(msg) {
+//   if (msg.syncing) {
+//     console.log('highlighter recieved syncing signal', msg.value);
+//     syncing = msg.value;
+//   }
+// });
 
 //
 // HIGHLIGHTER
@@ -123,6 +131,7 @@ chrome.runtime.onMessage.addListener(function(msg) {
 });
 
 const focusHighlight = function(highlightId) {
+  // console.log('scrollto highlight id', highlightId);
   $('html, body').animate(
     {
       scrollTop: $('#' + highlightId).offset().top - 200,
@@ -191,7 +200,7 @@ const highlight = function(selString, container, selection, color, highlightId, 
   // Step 1 + 2:
   recursiveWrapper(container);
   //  color = color ? color : 'yellow';
-  color = color ? color : 'rgba(248, 103, 13, 0.728)';
+  color = color || 'rgba(248, 103, 13, 0.728)';
   var replacements = getReplacements(color, highlightId);
 
   // Step 3:
@@ -310,12 +319,6 @@ function escapeRegex(text) {
 //   loadThisUrlsHighlights(window.location.href);
 // });
 
-chrome.runtime.onMessage.addListener(function(msg) {
-  if (msg.refresh) {
-    // console.log('msg.refresh called, href', window.location.href);
-    refreshHighlights(window.location.href, true);
-  }
-});
 const getCardsInOrder = function(cards, order) {
   // console.log('cards, order', cards, order);
   const orderedCards = [];
@@ -339,16 +342,28 @@ const getCardsInOrder = function(cards, order) {
   };
 };
 const storeHighlightsOrder = function(url, callback) {
-  chrome.storage.local.get(['highlights'], items => {
-    const highlights = items.highlights;
-    highlights[url].order = getHighlightsOrder();
-    if (highlights[url].cards) {
-      const sortedCards = getCardsInOrder(highlights[url].cards, getHighlightsOrder());
-      highlights[url].orderedCards = sortedCards.orderedCards;
-      highlights[url].orderlessCards = sortedCards.orderlessCards;
-    }
-    chrome.storage.local.set({ highlights });
-    if (callback) callback();
+  console.log('storeHighlightsOrder');
+  chrome.storage.local.get(['websites', 'othersWebsites', 'highlightsViewMode'], items => {
+    let websites;
+    if (items.highlightsViewMode === 'mineAndOthers')
+      websites = combineMineAndOthersWebsites(items.websites, items.othersWebsites);
+    else websites = items.websites;
+    if (websites[url])
+      if (websites[url].cards) {
+        websites[url].order = getHighlightsOrder();
+        const sortedCards = getCardsInOrder(websites[url].cards, websites[url].order);
+        websites[url].orderedCards = sortedCards.orderedCards;
+        websites[url].orderlessCards = sortedCards.orderlessCards;
+      }
+    if (items.highlightsViewMode === 'mineAndOthers') {
+      console.log('setting mineAndOthersWebsites', websites[url]);
+      chrome.storage.local.set({ mineAndOthersWebsites: websites }, () => {
+        if (callback) callback();
+      });
+    } else
+      chrome.storage.local.set({ websites: websites }, () => {
+        if (callback) callback();
+      });
   });
 };
 
@@ -362,13 +377,35 @@ const storeHighlight = function(
   highlightId,
   callback
 ) {
+  // if (syncing) {
+  //   alert('syncing, please wait');
+  //   return null;
+  // }
   // console.log('storeHighlight called');
-  chrome.storage.local.get(['highlights'], items => {
-    let highlights = items.highlights;
-    if (!highlights) highlights = {};
-    // console.log('highlights', highlights);
-    if (!highlights[url]) highlights[url] = {};
-    highlights[url][highlightId] = {
+  chrome.storage.local.get(['websites', 'user_collection'], items => {
+    let websites = items.websites;
+    const userCollection = items.user_collection;
+    if (!websites) websites = {};
+    if (!websites[url]) {
+      websites[url] = {};
+    }
+    if (!websites[url].highlights) {
+      websites[url].highlights = {};
+    }
+    console.log('user_collection', userCollection);
+    if (!userCollection.highlight_urls || !userCollection.highlight_urls.list) {
+      userCollection.highlight_urls = {};
+      userCollection.highlight_urls.list = [];
+    }
+    if (!items.user_collection.highlight_urls.list.includes(url)) {
+      userCollection.highlight_urls.list.push(url);
+      userCollection.highlight_urls.edited = new Date().getTime();
+      console.log('user colleciton after adding highlihgt urls', userCollection);
+      chrome.storage.local.set({
+        user_collection: userCollection,
+      });
+    }
+    websites[url].highlights[highlightId] = {
       string: selection.toString(),
       container: getQuery(container),
       anchorNode: getQuery(selection.anchorNode),
@@ -386,63 +423,90 @@ const storeHighlight = function(
     };
     // console.log('highlights[url]', highlights[url]);
     // console.log('thisURLsHighlights', thisURLsHighlights);
-    chrome.storage.local.set({ highlights });
-    if (callback) callback();
+    chrome.storage.local.set(
+      {
+        websites: websites,
+      },
+      () => {
+        if (callback) callback();
+      }
+    );
+    // chrome.runtime.sendMessage({
+    //   debouncedCloudSync: true,
+    // });
   });
 };
 
+// can also be used to replace a card
 const storeCard = function(card, callback) {
   // console.log('store card. card', card);
   const url = card.highlight_url;
-  chrome.storage.local.get({ highlights: {} }, items => {
-    let highlights = items.highlights;
-    if (!highlights) highlights = {};
-    // console.log('store-card, highlights', highlights);
-    if (!highlights[url]) highlights[url] = {};
-    // console.log(highlights[url]);
-
-    if (!highlights[url].cards) highlights[url].cards = [];
-    highlights[url].cards.push(card);
-    // console.log('card stored', highlights[url].cards);
-    chrome.storage.local.set({ highlights });
-    chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true });
-    // refreshHighlights(url, true);
-    if (callback) callback();
+  chrome.storage.local.get(['websites', 'user_collection'], items => {
+    if (!items.user_collection) {
+      alert('please log in to IPFC');
+      return null;
+    }
+    let websites = items.websites;
+    if (!websites) websites = {};
+    if (!websites[url]) {
+      websites[url] = {};
+    }
+    if (!websites[url].cards) {
+      websites[url].cards = [];
+    }
+    for (const existingCard of websites[url].cards) {
+      if (existingCard.card_id === card.card_id) {
+        websites[url].cards.splice(websites[url].cards.indexOf(existingCard), 1);
+        card.edited = new Date().getTime();
+        break;
+      }
+    }
+    websites[url].cards.push(card);
+    // console.log('card stored', highlights.cards);
+    chrome.storage.local.set(
+      {
+        websites: websites,
+      },
+      () => {
+        chrome.runtime.sendMessage({
+          refreshHighlights: true,
+          refreshOrder: true,
+          url: url,
+        });
+        if (callback) callback();
+      }
+    );
   });
 };
 
 const loadThisUrlsHighlights = function(url, callback) {
   // console.log('loadThisUrlsHighlights');
-  chrome.storage.local.get({ highlights: {} }, function(items) {
-    // console.log('load highlights items');
-    const highlights = items.highlights;
-    const thisURLsHighlights = highlights[url];
-    // console.log('thisURLsHighlights', thisURLsHighlights);
-    if (thisURLsHighlights !== undefined) {
-      const highlightIds = Object.keys(thisURLsHighlights);
-      // console.log('highlightIds', highlightIds);
-      for (const key of highlightIds) {
-        if (callback && highlightIds.indexOf(key) === highlightIds.length - 1) {
-          if (
-            key !== 'cards' &&
-            key !== 'order' &&
-            key !== 'orderedCards' &&
-            key !== 'orderlessCards'
-          ) {
-            loadHighlight(thisURLsHighlights[key], false, () => {
-              callback();
-            });
-          } else callback();
-        }
-        if (
-          key !== 'cards' &&
-          key !== 'order' &&
-          key !== 'orderedCards' &&
-          key !== 'orderlessCards'
-        )
-          loadHighlight(thisURLsHighlights[key]);
-      }
+  chrome.storage.local.get(['websites', 'othersWebsites', 'highlightsViewMode'], function(items) {
+    // console.log('load highlights items', items);
+    let websites;
+    if (items.highlightsViewMode === 'mineAndOthers')
+      websites = combineMineAndOthersWebsites(items.websites, items.othersWebsites);
+    else websites = items.websites;
+    if (!websites) {
+      websites = {};
+      chrome.storage.local.set({ websites: websites }, () => {
+        if (callback) callback();
+        return null;
+      });
     }
+    if (websites[url]) {
+      if (websites[url].highlights) {
+        const highlights = websites[url].highlights;
+        // console.log('loadThisUrlsHighlights - loading highlights', highlights);
+        console.log(Object.keys(highlights));
+        console.log(Object.keys(highlights)[Object.keys(highlights).length - 1]);
+        for (const key in highlights) {
+          if (key === Object.keys(highlights)[Object.keys(highlights).length - 1]) {
+            if (callback) loadHighlight(highlights[key], false, callback);
+          } else loadHighlight(highlights[key]);
+        }
+      }
+    } else if (callback) callback();
   });
 };
 
@@ -530,60 +594,235 @@ function escapeCSSString(cssString) {
 }
 
 const deleteAllPageHighlights = function(url) {
-  chrome.storage.local.get({ highlights: {} }, items => {
-    const highlights = items.highlights;
-    delete highlights[url];
-    chrome.storage.local.set({ highlights });
+  chrome.storage.local.get({ websites: {} }, items => {
+    const websites = items.websites;
+    delete websites[url];
+    chrome.storage.local.set({ websites });
   });
 };
 
-const deleteHighlight = function(url, id) {
-  chrome.storage.local.get({ highlights: {} }, items => {
-    const highlights = items.highlights;
-    // console.log('delete highlights[url] before', highlights[url]);
-
-    // console.log('delete id;', id);
-    delete highlights[url][id];
-    // console.log('delete highlights[url] after', highlights[url]);
-
-    const cards = highlights[url].cards;
-    // console.log('cards before delete', cards);
-    for (const card of cards) {
-      if (card.highlight_id === id) {
-        cards.splice(cards.indexOf(card), 1);
-        break;
-      }
+const deleteHighlight = function(url, id, thenDeleteCard = true) {
+  // if (syncing) {
+  //   alert('syncing, please wait');
+  //   return null;
+  // }
+  chrome.storage.local.get(['websites', 'user_collection'], items => {
+    if (!items.user_collection) {
+      alert('please log in to IPFC');
+      return null;
     }
-    // console.log('cards after', cards);
+    const websites = items.websites;
+    if (!websites) return null;
+    if (!websites[url]) return null;
+    if (!websites[url].highlights) return null;
+    if (!websites[url].deleted) websites[url].deleted = [];
+    websites[url].deleted.push(id);
+    if (websites[url].highlights[id]) delete websites[url].highlights[id];
+    // if highlights are empty, remove from highlights list
+    if (Object.keys(websites[url].highlights).length === 0) {
+      chrome.storage.local.get(['user_collection'], items => {
+        const userCollection = items.user_collection;
+        userCollection.highlight_urls.list.splice(
+          userCollection.highlight_urls.list.indexOf(url),
+          1
+        );
+        userCollection.highlight_urls.edited = new Date().getTime();
+        chrome.storage.local.set({ user_collection: userCollection });
+      });
+    }
+    console.log('delete websites[url] after', websites[url]);
+    chrome.storage.local.set({ websites }, () => {
+      // window.location.reload();
+      if (thenDeleteCard) {
+        const cards = websites[url].cards;
+        for (const card of cards) {
+          if (card.highlight_id === id) {
+            deleteCard(url, card, false);
+            break;
+          }
+        }
+      }
+      chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+    });
 
-    chrome.storage.local.set({ highlights });
-    // chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true });
-    window.location.reload();
+    // chrome.runtime.sendMessage({ debouncedCloudSync: true });
     // refreshHighlights(url, true);
   });
 };
 
+const deleteCard = function(url, card, thenDeleteHighlight = true) {
+  chrome.storage.local.get(['websites', 'user_collection'], items => {
+    // if (syncing) {
+    //   alert('syncing, please wait');
+    //   return null;
+    // }
+    if (!items.user_collection) {
+      alert('please log in to IPFC');
+      return null;
+    }
+    const websites = items.websites;
+    if (!websites) return null;
+    if (!websites[url]) return null;
+    if (!websites[url].highlights) return null;
+    if (!websites[url].deleted) websites[url].deleted = [];
+    websites[url].deleted.push(card.card_id);
+    console.log('card deleted and added to .deleted', card.card_id, websites[url].deleted);
+    for (const existingCard of websites[url].cards) {
+      if (existingCard.card_id === card.card_id) {
+        websites[url].cards.splice(websites[url].cards.indexOf(existingCard), 1);
+        break;
+      }
+    }
+    chrome.storage.local.set(
+      {
+        websites,
+      },
+      () => {
+        if (thenDeleteHighlight) deleteHighlight(url, card.highlight_id);
+        else {
+          // window.location.reload();
+          chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+        }
+      }
+    );
+    // chrome.runtime.sendMessage({
+    //   debouncedCloudSync: true,
+    // });
+  });
+};
+
+function combineMineAndOthersWebsites(websites, othersWebsites) {
+  const combinedWebsites = {};
+  if (isEmpty(websites) && isEmpty(othersWebsites)) return {};
+  if (isEmpty(websites) && !isEmpty(othersWebsites)) return othersWebsites;
+  if (!isEmpty(websites) && isEmpty(othersWebsites)) return websites;
+  for (const url in websites) {
+    const website = websites[url];
+    if (!Object.keys(othersWebsites).includes(url)) combinedWebsites[url] = website;
+    for (const oUrl in othersWebsites) {
+      const oWebsite = othersWebsites[oUrl];
+      if (!Object.keys(websites).includes(oUrl) && !Object.keys(combinedWebsites).includes(oUrl))
+        combinedWebsites[oUrl] = oWebsite;
+      else if (url === oUrl) {
+        const combinedWebsite = {};
+        combinedWebsite.deleted = [];
+        if (!isEmpty(oWebsite.deleted) || !isEmpty(website.deleted)) {
+          if (isEmpty(oWebsite.deleted)) combinedWebsite.deleted = oWebsite.deleted;
+          else if (isEmpty(website.deleted)) combinedWebsite.deleted = website.deleted;
+          else
+            for (const entry of website.deleted)
+              if (!combinedWebsite.deleted.includes(entry)) combinedWebsite.deleted.push(entry);
+        }
+        // console.log(oWebsite.cards, website.cards);
+        if (!isEmpty(oWebsite.cards) || !isEmpty(website.cards)) {
+          if (isEmpty(oWebsite.cards)) combinedWebsite.cards = website.cards;
+          else if (isEmpty(website.cards)) combinedWebsite.cards = oWebsite.cards;
+          else {
+            combinedWebsite.cards = [];
+            const combinedWebsiteCardIds = [];
+            for (const card of website.cards) {
+              if (!combinedWebsite.deleted.includes(card.card_id)) {
+                combinedWebsite.cards.push(card);
+                combinedWebsiteCardIds.push(card.card_id);
+              }
+            }
+            for (const card of oWebsite.cards)
+              if (
+                !combinedWebsite.deleted.includes(card.card_id) &&
+                !combinedWebsiteCardIds.includes(card.card_id)
+              )
+                combinedWebsite.cards.push(card);
+          }
+        }
+        // console.log(oWebsite.highlights, website.highlights);
+        if (!isEmpty(oWebsite.highlights) || !isEmpty(website.highlights)) {
+          if (isEmpty(oWebsite.highlights)) combinedWebsite.highlights = website.highlights;
+          else if (isEmpty(website.highlights)) combinedWebsite.highlights = oWebsite.highlights;
+          else {
+            combinedWebsite.highlights = {};
+            const combinedHighlightIds = [];
+            if (!isEmpty(website.highlights))
+              for (const highlight in website.highlights)
+                if (!combinedWebsite.deleted.includes(highlight)) {
+                  combinedWebsite.highlights[highlight] = website.highlights[highlight];
+                  combinedHighlightIds.push(highlight);
+                }
+            if (!isEmpty(oWebsite.highlights))
+              for (const highlight in oWebsite.highlights)
+                if (
+                  !combinedWebsite.deleted.includes(highlight) &&
+                  !combinedHighlightIds.includes(highlight)
+                )
+                  combinedWebsite.highlights[highlight] = oWebsite.highlights[highlight];
+          }
+        }
+        if (!isEmpty(website.order)) combinedWebsite.order = website.order;
+        if (!isEmpty(website.orderedCards)) combinedWebsite.order = website.orderedCards;
+        if (!isEmpty(website.orderlessCards)) combinedWebsite.order = website.orderlessCards;
+        combinedWebsites[oUrl] = combinedWebsite;
+      }
+    }
+  }
+  // console.log('combined websites', combinedWebsites);
+  return combinedWebsites;
+}
+
 const refreshHighlights = function(url, refreshOrder) {
-  const refreshComplete = function(refreshOrder) {
-    if (refreshOrder) chrome.runtime.sendMessage({ orderRefreshed: true });
-    else chrome.runtime.sendMessage({ highlightsRefreshed: true });
-  };
-  if (refreshOrder) {
-    clearPageHighlights(() => {
-      // console.log('refresh order, url', url);
-      loadThisUrlsHighlights(url, () => {
-        storeHighlightsOrder(url, () => {
-          refreshComplete(true);
+  chrome.storage.local.get(['websites', 'mineAndOthersWebsites', 'highlightsViewMode'], items => {
+    let websites;
+    if (items.highlightsViewMode === 'mineAndOthers') websites = items.mineAndOthersWebsites;
+    else websites = items.websites;
+    if (!websites) websites = {};
+    let website = websites[url];
+    if (!website) website = {};
+    let orderlessCardsCountBefore = 0;
+    if (website.orderlessCards) orderlessCardsCountBefore = website.orderlessCards.length;
+    console.log('orderlessCardsCountBefore', orderlessCardsCountBefore);
+
+    const refreshComplete = function(refreshOrder) {
+      // if there are more orderless cards after the refresh, there was a glitch. This reloading can be a little jarring, make it optional?
+      chrome.storage.local.get(
+        ['websites', 'mineAndOthersWebsites', 'highlightsViewMode'],
+        items => {
+          let websites;
+          if (items.highlightsViewMode === 'mineAndOthers') websites = items.mineAndOthersWebsites;
+          else websites = items.websites;
+          if (!websites) websites = {};
+          let website = websites[url];
+          if (!website) website = {};
+          let orderlessCardsCountAfter = 0;
+          if (website.orderlessCards) orderlessCardsCountAfter = website.orderlessCards.length;
+          console.log('orderlessCardsCountAfter', orderlessCardsCountAfter);
+          if (
+            orderlessCardsCountAfter === 0 ||
+            orderlessCardsCountAfter === orderlessCardsCountBefore
+          ) {
+            if (refreshOrder) chrome.runtime.sendMessage({ orderRefreshed: true });
+            else chrome.runtime.sendMessage({ highlightsRefreshed: true });
+          } else {
+            location.reload();
+          }
+        }
+      );
+    };
+    if (refreshOrder) {
+      clearPageHighlights(() => {
+        console.log('refresh order, url', url);
+        loadThisUrlsHighlights(url, () => {
+          console.log('storeHighlightsOrder');
+          storeHighlightsOrder(url, () => {
+            refreshComplete(true);
+          });
         });
       });
-    });
-  } else {
-    clearPageHighlights(() => {
-      loadThisUrlsHighlights(url, () => {
-        refreshComplete();
+    } else {
+      clearPageHighlights(() => {
+        loadThisUrlsHighlights(url, () => {
+          refreshComplete();
+        });
       });
-    });
-  }
+    }
+  });
 };
 $(document).ready(refreshHighlights(window.location.href, true));
 
@@ -641,6 +880,10 @@ setInterval(() => {
 const uuidv4 = require('uuid/v4');
 
 const getHighlight = function() {
+  // if (syncing) {
+  //   alert('syncing, please wait');
+  //   return null;
+  // }
   const selection = window.getSelection();
   const selectionString = selection.toString();
   // console.log('getHightCalled');
@@ -654,7 +897,10 @@ const getHighlight = function() {
 
     chrome.storage.local.get(['color', 'user_collection'], items => {
       // console.log(items.user_collection);
-      if (!items.user_collection) alert('please log in to IPFC');
+      if (!items.user_collection) {
+        alert('please log in to IPFC');
+        return null;
+      }
       const userId = items.user_collection.user_id;
       const color = items.color;
       const highlightId = 'h-id-' + uuidv4(); // need letters in front for valid html id. Can't start with numbers
@@ -717,6 +963,15 @@ chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.getHighlight) {
     getHighlight();
   }
+  if (msg.deleteHighlight) {
+    deleteHighlight(msg.url, msg.id);
+  }
+  if (msg.deleteCard) {
+    deleteCard(msg.url, msg.card);
+  }
+  if (msg.storeCard) {
+    storeCard(msg.card);
+  }
 });
 
 export {
@@ -726,4 +981,5 @@ export {
   storeCard,
   deleteAllPageHighlights,
   deleteHighlight,
+  deleteCard,
 };

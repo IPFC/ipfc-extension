@@ -12,7 +12,6 @@ const config = {
   mode: process.env.NODE_ENV,
   context: __dirname + '/src',
   entry: {
-    'jquery-2.1.3.min': './jquery-2.1.3.min.js',
     background: './background.js',
     // 'contentStyles.css': './contentStyles.css',
     'highlighter/highlighter': './highlighter/highlighter.js',

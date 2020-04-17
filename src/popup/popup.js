@@ -16,17 +16,14 @@ import {
   // faUndo,
   // faTrashAlt,
   // faSearch,
-  // faCloud,
-  // faCheck,
+  faCloud,
+  faCheck,
   // faTimes,
-  // faSync,
+  faSync,
   faSpinner,
-  // faExclamation,
+  faExclamation,
 } from '@fortawesome/free-solid-svg-icons';
-import {
-  FontAwesomeIcon,
-  // FontAwesomeLayers
-} from '@fortawesome/vue-fontawesome';
+import { FontAwesomeIcon, FontAwesomeLayers } from '@fortawesome/vue-fontawesome';
 
 library.add(
   // faMinusCircle,
@@ -40,19 +37,16 @@ library.add(
   // faUndo,
   // faTrashAlt,
   // faSearch,
-  // faCloud,
-  // faCheck,
+  faCloud,
+  faCheck,
   // faTimes,
-  // faSync,
-  faSpinner
-  // faExclamation
+  faSync,
+  faSpinner,
+  faExclamation
 );
 
 Vue.component('font-awesome-icon', FontAwesomeIcon);
-Vue.component(
-  'font-awesome-layers'
-  // FontAwesomeLayers
-);
+Vue.component('font-awesome-layers', FontAwesomeLayers);
 
 Vue.use(LayoutPlugin);
 Vue.component('b-button', BButton);

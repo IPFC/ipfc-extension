@@ -134,8 +134,23 @@ export default {
       dismissCountDown: 0,
       loggingIn: false,
       showSignUp: false,
-      serverURL: 'https://ipfc-midware.herokuapp.com',
     };
+  },
+  mounted() {
+    const that = this;
+    chrome.runtime.onMessage.addListener(function(msg) {
+      if (msg.failedLogin) {
+        console.log('failed login');
+        that.loggingIn = false;
+        that.failedLogin = true;
+        that.apiErrorMsg = msg.apiErrorMsg;
+      }
+      if (msg.loginSuccess) {
+        console.log('loginSuccess');
+        that.loggingIn = false;
+        that.$emit('loginSuccess');
+      }
+    });
   },
   computed: {
     emailValidation() {
@@ -243,7 +258,27 @@ export default {
     },
   },
   methods: {
-    async callAPI(url, headers, method, data = null, callback = null) {
+    login() {
+      this.loggingIn = true;
+      this.failedLogin = false;
+      chrome.runtime.sendMessage({
+        login: true,
+        username: this.input.email,
+        password: this.input.password,
+      });
+    },
+    signup() {
+      this.loggingIn = true;
+      this.failedLogin = false;
+      chrome.runtime.sendMessage({
+        login: true,
+        username: this.input.email,
+        password: this.input.password,
+        pinata_api: this.input.pinataApi,
+        pinata_key: this.input.pinataSecret,
+      });
+    },
+    OcallAPI(url, headers, method, data = null, callback = null) {
       const that = this;
       const options = {
         url: url,
@@ -254,24 +289,24 @@ export default {
         options.data = data;
       }
       // console.log('options', options);
-      await axios(options)
+      axios(options)
         .then(response => {
           data = response.data;
           // console.log('data', data);
           if (callback !== null) {
             callback(data, that);
-          }
-          return data;
+            return data;
+          } else return data;
         })
         .catch(function(err) {
           that.failedLogin = true;
           that.apiErrorMsg = err;
         });
     },
-    login() {
+    Ologin() {
       this.loggingIn = true;
       this.failedLogin = false;
-      const loginURL = this.serverURL + '/login';
+      const loginURL = this.serverUrl + '/login';
       const username = this.input.email;
       const password = this.input.password;
       const headers = {
@@ -285,28 +320,33 @@ export default {
         } else {
           chrome.storage.local.set({ jwt: data.token });
           chrome.storage.local.set({ pinata_keys: data.pinata_keys });
-          that.getMeta(data.token, data.pinata_keys, that);
+          that.getMeta(data.token, that);
         }
-        that.loggingIn = false;
       };
       this.callAPI(loginURL, headers, 'GET', null, loginCallback);
     },
-    getMeta(token, pinataKeys, that) {
+    OgetMeta(token, that) {
+      console.log('token', token);
       const getMetaHeaders = {
         'Content-Type': 'application/json',
         'x-access-token': token,
       };
-      const getMetaURL = that.serverURL + '/get_meta_and_collection';
+      const getMetaURL = that.serverUrl + '/get_decks_meta_and_collection';
       const getMetaCallback = function(data) {
-        chrome.storage.local.set({ user_collection: data.user_collection });
+        chrome.storage.local.set({
+          user_collection: data.user_collection,
+          decks_meta: data.decks_meta,
+        });
+        that.loggingIn = false;
         that.$emit('loginSuccess');
+        chrome.runtime.sendMessage({ cloudSync: true });
       };
       this.callAPI(getMetaURL, getMetaHeaders, 'GET', null, getMetaCallback);
     },
-    SignUp() {
+    OSignUp() {
       this.loggingIn = true;
       this.failedLogin = false;
-      const signupURL = this.serverURL + '/sign_up';
+      const signupURL = this.serverUrl + '/sign_up';
       const data = {
         email: this.input.email,
         password: this.input.password,
@@ -322,9 +362,8 @@ export default {
         } else {
           that.login();
         }
-        that.loggingIn = false;
       };
-      this.callAPI(signupURL, headers, 'POST', signupCallback, data);
+      this.callAPI(signupURL, headers, 'POST', data, signupCallback);
     },
     toggleShowSignUp() {
       this.showSignUp = !this.showSignUp;

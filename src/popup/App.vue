@@ -1,36 +1,24 @@
 <template>
   <div id="popup-body">
+    <the-navbar v-if="loggedIn"></the-navbar>
+    <the-menu v-if="loggedIn"></the-menu>
+
     <login v-if="!loggedIn" @loginSuccess="setLoggedIn" />
-    <p v-if="loggedIn" @click="openSidebarWindow">
-      Open sidebar in a new window
-    </p>
-    <hr v-if="loggedIn" />
-    <p v-if="loggedIn" @click="openInThisWindow">
-      Open sidebar this window
-    </p>
-    <hr v-if="loggedIn" />
-    <p v-if="loggedIn" @click="logout">
-      Log out
-    </p>
   </div>
 </template>
 
 <script>
-import login from '../components/Login.vue';
-import { createSidebar } from '../utils/sidebarContentScript.js';
+import Login from '../components/Login.vue';
+import TheNavbar from '../components/TheNavbar.vue';
+import TheMenu from '../components/TheMenu.vue';
 export default {
-  components: { login },
+  components: { Login, TheNavbar, TheMenu },
   data() {
     return {
       loggedIn: false,
       runInNewWindow: false,
       jwt: null,
     };
-  },
-  created() {
-    chrome.windows.getCurrent(function(win) {
-      chrome.runtime.sendMessage({ popupWinId: win.id });
-    });
   },
   mounted() {
     // console.log(this.checkJwt());
@@ -68,22 +56,13 @@ export default {
       // console.log('setLoggedIn');
       this.loggedIn = true;
     },
-    logout() {
-      chrome.storage.local.set({ jwt: null, user_collection: null, highlights: null });
-      window.close();
-    },
-    openInThisWindow() {
-      chrome.storage.local.set({ runInNewWindow: false });
-      chrome.tabs.executeScript({
-        file: 'sidebar/sidebar.js',
-      });
-      window.close();
-    },
-    openSidebarWindow() {
-      chrome.storage.local.set({ runInNewWindow: true });
-      createSidebar();
-      window.close();
-    },
+    // openInThisWindow() {
+    //   chrome.storage.local.set({ runInNewWindow: false });
+    //   chrome.tabs.executeScript({
+    //     file: 'sidebar/sidebar.js',
+    //   });
+    //   window.close();
+    // },
   },
 };
 </script>

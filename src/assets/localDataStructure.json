@@ -1,26 +1,28 @@
 {
-  "highlights": {
+  "websites": {
     "url_http://www...": {
-      "highlight_id_28b5e2eb-b268-40b4-bfa6-303a92b9ab15": {
-        "anchorNode": "#root>div:nth-of-type(1)>div:nth-of-type(1)>main:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>textNode:nth-of-type(2)",
-        "anchorOffset": 1,
-        "color": "rgba(248, 103, 13, 0.728)",
-        "container": "#root>div:nth-of-type(1)>div:nth-of-type(1)>main:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)",
-        "focusNode": "#root>div:nth-of-type(1)>div:nth-of-type(1)>main:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>textNode:nth-of-type(2)",
-        "focusOffset": 4,
-        "string": "Selected text from the website",
-        "user_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15",
-        "card_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15",
-        "visibility": "only_me/public", // change in card editor, set to public as default in storage manager
-        "editable_by": "only_me/public", // change in card editor, set to public as default in storage manager
-        "edited": 12343,
-        "created": 1342342,
+      "highlights": {
+        "highlight_id_28b5e2eb-b268-40b4-bfa6-303a92b9ab15": {
+          "anchorNode": "#root>div:nth-of-type(1)>div:nth-of-type(1)>main:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>textNode:nth-of-type(2)",
+          "anchorOffset": 1,
+          "color": "rgba(248, 103, 13, 0.728)",
+          "container": "#root>div:nth-of-type(1)>div:nth-of-type(1)>main:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)",
+          "focusNode": "#root>div:nth-of-type(1)>div:nth-of-type(1)>main:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>div:nth-of-type(1)>textNode:nth-of-type(2)",
+          "focusOffset": 4,
+          "string": "Selected text from the website",
+          "user_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15",
+          "card_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15",
+          "visibility": "only_me/public", // change in card editor, set to public as default in storage manager
+          "editable_by": "only_me/public", // change in card editor, set to public as default in storage manager
+          "edited": 12343,
+          "created": 1342342,
 
-        "prompt_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15", // set in get highlight, later split
-        "note_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15", // set in get highlight, later split
-        "inject": false,
-        "video": false,
-        "video_loc": "03:42:24"
+          "prompt_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15", // set in get highlight, later split
+          "note_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15", // set in get highlight, later split
+          "inject": false,
+          "video": false,
+          "video_loc": "03:42:24"
+        }
       },
       "cards": [{
         "card_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15",
@@ -33,7 +35,11 @@
         "highLight_url": "http://f1f4.sdff",
         "highlight_id": "28b5e2eb-b268-40b4-bfa6-303a92b9ab15"
       }],
-      "page_creator": "user_id"
+      "page_creator": "user_id",
+      "deleted": ["28b5e2eb-b268-40b4-bfa6-303a92b9ab15", "28b5e2eb-b268-40b4-bfa6-303a92b9ab15"],
+      "order": [],
+      "orderedCards": [],
+      "oderlessCards": []
     }
   }
 }
