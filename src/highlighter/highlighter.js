@@ -487,17 +487,18 @@ const loadThisUrlsHighlights = function(url, callback) {
     if (items.highlightsViewMode === 'mineAndOthers')
       websites = combineMineAndOthersWebsites(items.websites, items.othersWebsites);
     else websites = items.websites;
-    if (!websites) {
+    if (!websites && items.highlightsViewMode === 'mine') {
       websites = {};
       chrome.storage.local.set({ websites: websites }, () => {
         if (callback) callback();
         return null;
       });
     }
-    if (websites[url]) {
-      if (websites[url].highlights) {
+    console.log('websites[url]', websites[url]);
+    if (!isEmpty(websites[url])) {
+      if (!isEmpty(websites[url].highlights)) {
         const highlights = websites[url].highlights;
-        // console.log('loadThisUrlsHighlights - loading highlights', highlights);
+        console.log('loadThisUrlsHighlights - loading highlights', highlights);
         console.log(Object.keys(highlights));
         console.log(Object.keys(highlights)[Object.keys(highlights).length - 1]);
         for (const key in highlights) {
@@ -505,7 +506,7 @@ const loadThisUrlsHighlights = function(url, callback) {
             if (callback) loadHighlight(highlights[key], false, callback);
           } else loadHighlight(highlights[key]);
         }
-      }
+      } else if (callback) callback();
     } else if (callback) callback();
   });
 };
@@ -769,6 +770,7 @@ function combineMineAndOthersWebsites(websites, othersWebsites) {
 
 const refreshHighlights = function(url, refreshOrder) {
   chrome.storage.local.get(['websites', 'mineAndOthersWebsites', 'highlightsViewMode'], items => {
+    if (window.location.href !== url) return null;
     let websites;
     if (items.highlightsViewMode === 'mineAndOthers') websites = items.mineAndOthersWebsites;
     else websites = items.websites;

@@ -68,7 +68,6 @@ function getStorage() {
         'jwt',
       ],
       function(items) {
-        chrome.storage.local.set({ decks_meta: items.decks_meta });
         // console.log('    items', items);
         const returnData = {};
         returnData.jwt = items.jwt;
@@ -127,6 +126,8 @@ async function getMetaData(jwt, serverUrl) {
   if (!metaDataCallResults) {
     throw new Error('error in get_decks_meta_and_collection');
   }
+  chrome.storage.local.set({ decks_meta: metaDataCallResults.decks_meta });
+
   return metaDataCallResults.user_collection;
 }
 async function syncHighlightUrls(

@@ -59,13 +59,13 @@
                     color="white"
                     size="1x"
                     icon="plus-circle"
-                    @click="addNewDeck()"
+                    @click="createNewDeck()"
                   />
                   <b-form-input
                     v-if="addingDeck"
                     v-model="newDeckTitle"
                     class="d-inline tag-input"
-                    @keyup.enter.prevent="addNewDeck()"
+                    @keyup.enter.prevent="createNewDeck()"
                   ></b-form-input>
                 </b-button>
               </p>
@@ -371,10 +371,13 @@ export default {
           that.user_collection = items.user_collection;
           that.decks_meta = items.decks_meta;
           that.jwt = items.jwt;
+          that.toEditCardData = items.toEditCardData;
+          that.newCardData = items.newCardData;
           that.editorOption.modules.toolbar =
             items.user_collection.webapp_settings.text_editor.options.toolbar;
           if (items.toEditCardData) {
-            if (items.toEditCardData.time > items.newCardData.time)
+            if (!items.newCardData) that.setCard(items.toEditCardData.card);
+            else if (items.toEditCardData.time > items.newCardData.time)
               that.setCard(items.toEditCardData.card);
             else that.setCard(items.newCardData);
           } else that.setCard(items.newCardData);
@@ -469,15 +472,26 @@ export default {
       const card = await this.getQuillData(cardInput, quill);
       if (card.card_tags.includes('Daily Review')) this.addCardToSchedule(card.card_id);
       chrome.runtime.sendMessage({ storeCard: true, card: card });
-      if (this.deck.card_count === 0) {
-        // if it was a new deck:
+      this.card = card;
+      // if editing old card
+      let updatingCard;
+      if (this.toEditCardData) {
+        if (!this.newCardData) updatingCard = true;
+        else if (this.toEditCardData.time > this.newCardData.time) updatingCard = true;
+      }
+      if (updatingCard) this.putCard();
+      else if (this.deck.card_count === 0) {
         this.deck.card_count = 1;
-        this.postNewDeck();
-      } else this.putDeck();
+        this.postDeck();
+      } else if (!updatingCard) this.postCard();
+
       this.lastUsedDecks[card.highlight_url] = this.deck.title;
-      chrome.storage.local.set({ lastUsedDecks: this.lastUsedDecks });
+      chrome.storage.local.set({
+        lastUsedDecks: this.lastUsedDecks,
+        toEditCardData: null,
+        newCardData: null,
+      });
       this.cancelled = true;
-      // window.close();
       return true;
     },
     // use later for dropdown menu, copy to other deck
@@ -510,7 +524,7 @@ export default {
     copyCardToNewDeck: function() {},
     duplicateCArd: function() {},
     // move this to deck selection page. keep here for option 'creat new deck', when selecting move/add to another deck
-    addNewDeck: function() {
+    createNewDeck: function() {
       if (this.newDeckTitle === '' || this.newDeckTitle === ' ') {
         this.toggleAddingDeck();
       } else {
@@ -535,7 +549,62 @@ export default {
         this.newDeckTitle = '';
       }
     },
-    postNewDeck: async function() {
+    postCard: async function() {
+      const options = {
+        url: this.serverUrl + '/post_card',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': this.jwt,
+        },
+        method: 'POST',
+        data: {
+          card: this.card,
+          deck_id: this.deck.deck_id,
+        },
+      };
+      let result;
+      await axios(options)
+        .then(response => {
+          result = response.data;
+          console.log('new card posted, result: ', result);
+          chrome.runtime.sendMessage({ cloudSync: true });
+          // window.close();
+        })
+        .catch(function(err) {
+          // window.close();
+          throw new Error(err);
+        });
+    },
+    putCard: async function() {
+      const options = {
+        url: this.serverUrl + '/put_card',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': this.jwt,
+        },
+        method: 'PUT',
+        data: {
+          card: this.card,
+          deck_id: this.deck.deck_id,
+        },
+      };
+      let result;
+      console.log('putting card', options.data);
+      await axios(options)
+        .then(response => {
+          result = response.data;
+          console.log(' card updated, result: ', result);
+          chrome.runtime.sendMessage({ cloudSync: true });
+          // window.close();
+        })
+        .catch(function(err) {
+          // window.close();
+          throw new Error(err);
+        });
+    },
+    postDeck: async function() {
+      this.deck.edited = new Date().getTime();
+      this.deck.cards = [this.card];
       const options = {
         url: this.serverUrl + '/post_deck',
         headers: {
@@ -549,29 +618,12 @@ export default {
       await axios(options)
         .then(response => {
           result = response.data;
-          console.log('new deck posted, result: ', result);
+          console.log('deck posted, result: ', result);
+          chrome.runtime.sendMessage({ cloudSync: true });
+          // window.close();
         })
         .catch(function(err) {
-          throw new Error(err);
-        });
-    },
-    putDeck: async function() {
-      const options = {
-        url: this.serverUrl + '/put_deck',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-access-token': this.jwt,
-        },
-        method: 'PUT',
-        data: this.deck,
-      };
-      let result;
-      await axios(options)
-        .then(response => {
-          result = response.data;
-          console.log('deck PUT, result: ', result);
-        })
-        .catch(function(err) {
+          // window.close();
           throw new Error(err);
         });
     },

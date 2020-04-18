@@ -296,13 +296,13 @@ function updateActiveTab(refresh) {
       if (
         items.lastActiveTabId !== lastActiveTabId &&
         lastActiveTabId !== items.sidebarWinId + 1 &&
-        !lastActiveTabUrl.includes('chrome')
+        !lastActiveTabUrl.startsWith('chrome')
       ) {
         chrome.storage.local.set({
           lastActiveTabId: lastActiveTabId,
         });
       }
-      if (items.lastActiveTabUrl !== lastActiveTabUrl && !lastActiveTabUrl.includes('chrome')) {
+      if (items.lastActiveTabUrl !== lastActiveTabUrl && !lastActiveTabUrl.startsWith('chrome')) {
         chrome.storage.local.set({
           lastActiveTabUrl: lastActiveTabUrl,
         });
@@ -331,7 +331,7 @@ chrome.windows.onFocusChanged.addListener(function(windowId) {
       // console.log('    win.tabs[0].url', window.tabs[0].url);
       // Will this be blocking updates we want? && window.tabs[0].url !== lastActiveTabUrl
 
-      if (!window.tabs[0].url.includes('chrome') && window.tabs[0].url !== lastActiveTabUrl) {
+      if (!window.tabs[0].url.startsWith('chrome') && window.tabs[0].url !== lastActiveTabUrl) {
         updateActiveTab();
         checkIfHighlightsExist(window.tabs[0].url, () => {
           SendOutRefresh(window.tabs[0].url, true);
@@ -344,7 +344,7 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   if (changeInfo.url) {
     // Will this be blocking updates we want? && changeInfo.url !== lastActiveTabUrl
 
-    if (!changeInfo.url.includes('chrome') && changeInfo.url !== lastActiveTabUrl) {
+    if (!changeInfo.url.startsWith('chrome') && changeInfo.url !== lastActiveTabUrl) {
       updateActiveTab(true);
       checkIfHighlightsExist(changeInfo.url, () => {
         SendOutRefresh(changeInfo.url, true);

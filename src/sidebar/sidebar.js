@@ -24,6 +24,8 @@ import {
   faExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon, FontAwesomeLayers } from '@fortawesome/vue-fontawesome';
+import 'highlight.js/styles/monokai-sublime.css';
+import Highlight from '../utils/syntaxHighlight';
 
 library.add(
   // faMinusCircle,
@@ -50,6 +52,8 @@ Vue.component('font-awesome-layers', FontAwesomeLayers);
 
 Vue.use(LayoutPlugin);
 Vue.component('b-button', BButton);
+
+Vue.use(Highlight);
 
 global.browser = require('webextension-polyfill');
 Vue.prototype.$browser = global.browser;
