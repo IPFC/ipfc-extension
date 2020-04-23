@@ -1,6 +1,6 @@
 {
-  "name": "ipfc-extension",
-  "description": "A browser extension for Inter Planetary Flash Cards",
+  "name": "Inter Planetary Flash Cards - Extension",
+  "description": "Quickly make flashcards and highlights from websites and sync them to multiplatform flashcard apps for review",
   "version": 0.1,
   "manifest_version": 2,
   "icons": {
@@ -8,7 +8,7 @@
     "128": "icons/icon_128.png"
   },
   "browser_action": {
-    "default_title": "ipfc-extension",
+    "default_title": "Inter Planetary Flash Cards -  Extension",
     "default_popup": "popup/popup.html"
   },
   "background": {
@@ -18,7 +18,7 @@
   },
   "content_scripts": [{
     "matches": ["http://*/*", "https://*/*"],
-    "exclude_globs": ["*ipfc.tech*"],
+    "exclude_globs": ["*ipfc.tech*", "*localhost*"],
     "js": [
       "highlighter/highlighter.js",
       "utils/sidebarContentScript.js"

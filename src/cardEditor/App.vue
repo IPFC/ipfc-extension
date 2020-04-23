@@ -5,36 +5,27 @@
         <b-row id="main-row">
           <b-col id="main-col">
             <b-container class="card scroller" :class="frontFocusClass">
-              <div
-                v-if="!frontFocused"
-                v-highlight
-                v-dompurify-html="card.front_rich_text"
-                class="preview"
-                @click="focusInputFront()"
-              ></div>
+              <!-- had to wrap this in a div because of v-highlight bugginess -->
+              <div v-if="!frontFocused" v-highlight class="preview" @click="focusInputFront()">
+                <div v-if="card.front_rich_text" v-dompurify-html="card.front_rich_text"></div>
+              </div>
               <quill-editor
                 v-if="frontFocused"
                 ref="myQuillEditorFront"
                 v-model="card.front_rich_text"
-                v-highlight
                 class="quill"
                 :options="editorOption"
               ></quill-editor>
             </b-container>
             <br />
             <b-container class="card scroller" :class="backFocusClass">
-              <div
-                v-if="!backFocused"
-                v-highlight
-                v-dompurify-html="card.back_rich_text"
-                class="preview"
-                @click="focusInputBack()"
-              ></div>
+              <div v-if="!backFocused" v-highlight class="preview" @click="focusInputBack()">
+                <div v-if="card.back_rich_text" v-dompurify-html="card.back_rich_text"></div>
+              </div>
               <quill-editor
                 v-if="backFocused"
                 ref="myQuillEditorBack"
                 v-model="card.back_rich_text"
-                v-highlight
                 class="quill"
                 :options="editorOption"
               ></quill-editor>
@@ -162,6 +153,7 @@ import { isEmpty } from 'lodash';
 import 'quill/dist/quill.snow.css';
 import imageUpload from 'quill-plugin-image-upload';
 import defaultCollection from '../assets/defaultCollection.json';
+import { highlighter } from '../utils/syntaxHighlight.js';
 
 const uuidv4 = require('uuid/v4');
 const axios = require('axios');
@@ -247,7 +239,7 @@ export default {
           },
           toolbar: defaultCollection.user_collection.webapp_settings.text_editor.options.toolbar,
           syntax: {
-            highlight: text => window.hljs.highlightAuto(text).value,
+            highlight: text => highlighter.highlightAuto(text).value,
           },
           history: {
             delay: 2000,
@@ -265,7 +257,8 @@ export default {
   computed: {
     unincludedTags() {
       // this now rides on review deck in getters
-      const allTagsList = this.user_collection.all_card_tags;
+      console.log('this.user_collection', this.user_collection);
+      const allTagsList = this.user_collection.all_card_tags.list;
       const unincludedTagsList = [];
       if (!isEmpty(allTagsList))
         for (const tag of allTagsList) {
@@ -302,16 +295,24 @@ export default {
     setCard(cardData) {
       this.card = {
         card_tags: ['Daily Review'],
-        front_text: cardData.selection ? cardData.selection : cardData.front_text,
+        front_text: cardData.selection
+          ? cardData.selection
+          : cardData.front_text
+          ? cardData.front_text
+          : '',
         back_text: cardData.back_text ? cardData.back_text : '',
-        front_rich_text: cardData.selection ? cardData.selection : cardData.front_rich_text,
+        front_rich_text: cardData.selection
+          ? cardData.selection
+          : cardData.front_rich_text
+          ? cardData.front_rich_text
+          : '',
         back_rich_text: cardData.back_rich_text ? cardData.back_rich_text : '',
         card_id: cardData.card_id,
         user_id: cardData.user_id,
         highlight_url: cardData.highlight_url,
-        highlight_id: cardData.highlight_id,
         edited: new Date().getTime(),
       };
+      if (cardData.highlight_id) this.card.highlight_id = cardData.highlight_id;
       if (this.lastUsedDecks[cardData.highlight_url]) {
         for (const deck of this.decks_meta) {
           if (deck.title === this.lastUsedDecks[cardData.highlight_url]) {
@@ -330,7 +331,7 @@ export default {
           return null;
         }
       }
-      this.deck = {
+      const newDeck = {
         cards: [this.card],
         user_id: this.user_collection.user_id,
         deck_id: uuidv4(),
@@ -345,6 +346,9 @@ export default {
         visibility: 'public',
         icon_color: this.generateRandomHslaColor(),
       };
+      this.decks_meta.push(newDeck);
+      this.deck = newDeck;
+      this.newDeckToPost = deckTitle;
     },
     loadStorage() {
       const that = this;
@@ -375,12 +379,8 @@ export default {
           that.newCardData = items.newCardData;
           that.editorOption.modules.toolbar =
             items.user_collection.webapp_settings.text_editor.options.toolbar;
-          if (items.toEditCardData) {
-            if (!items.newCardData) that.setCard(items.toEditCardData.card);
-            else if (items.toEditCardData.time > items.newCardData.time)
-              that.setCard(items.toEditCardData.card);
-            else that.setCard(items.newCardData);
-          } else that.setCard(items.newCardData);
+          if (items.toEditCardData) that.setCard(items.toEditCardData.card);
+          else if (items.newCardData) that.setCard(items.newCardData);
           that.loaded = true;
         }
       );
@@ -472,26 +472,46 @@ export default {
       const card = await this.getQuillData(cardInput, quill);
       if (card.card_tags.includes('Daily Review')) this.addCardToSchedule(card.card_id);
       chrome.runtime.sendMessage({ storeCard: true, card: card });
-      this.card = card;
       // if editing old card
       let updatingCard;
       if (this.toEditCardData) {
         if (!this.newCardData) updatingCard = true;
         else if (this.toEditCardData.time > this.newCardData.time) updatingCard = true;
       }
-      if (updatingCard) this.putCard();
-      else if (this.deck.card_count === 0) {
+      if (this.newDeckToPost === this.deck.title) {
         this.deck.card_count = 1;
-        this.postDeck();
-      } else if (!updatingCard) this.postCard();
-
+        this.deck.cards = [card];
+        chrome.runtime.sendMessage({
+          postDeck: true,
+          jwt: this.jwt,
+          serverUrl: this.serverUrl,
+          card: card,
+          deck: this.deck,
+        });
+      } else if (updatingCard) {
+        chrome.runtime.sendMessage({
+          putCard: true,
+          jwt: this.jwt,
+          serverUrl: this.serverUrl,
+          card: card,
+          deckId: this.deck.deck_id,
+        });
+      } else {
+        chrome.runtime.sendMessage({
+          postCard: true,
+          jwt: this.jwt,
+          serverUrl: this.serverUrl,
+          card: card,
+          deckId: this.deck.deck_id,
+        });
+      }
       this.lastUsedDecks[card.highlight_url] = this.deck.title;
       chrome.storage.local.set({
         lastUsedDecks: this.lastUsedDecks,
         toEditCardData: null,
         newCardData: null,
       });
-      this.cancelled = true;
+      window.close();
       return true;
     },
     // use later for dropdown menu, copy to other deck
@@ -503,15 +523,9 @@ export default {
     removeTagFromCard(tag) {
       const card = JSON.parse(JSON.stringify(this.card));
       card.card_tags.splice(card.card_tags.indexOf(tag), 1);
-      this.submit(card);
     },
     addTagToCard(tag) {
-      const card = JSON.parse(JSON.stringify(this.card));
-      if (tag === 'Daily Review') {
-        // this.$store.commit('addCardToSchedule', card.card_id);
-      }
-      card.card_tags.unshift(tag);
-      this.submit(card);
+      this.card.card_tags.unshift(tag);
     },
     toggleAddingTag: function() {
       this.addingTag = !this.addingTag;
@@ -519,11 +533,6 @@ export default {
     toggleAddingDeck: function() {
       this.addingDeck = !this.addingDeck;
     },
-    // new
-    moveCard: function() {},
-    copyCardToNewDeck: function() {},
-    duplicateCArd: function() {},
-    // move this to deck selection page. keep here for option 'creat new deck', when selecting move/add to another deck
     createNewDeck: function() {
       if (this.newDeckTitle === '' || this.newDeckTitle === ' ') {
         this.toggleAddingDeck();
@@ -548,84 +557,6 @@ export default {
         this.toggleAddingDeck();
         this.newDeckTitle = '';
       }
-    },
-    postCard: async function() {
-      const options = {
-        url: this.serverUrl + '/post_card',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-access-token': this.jwt,
-        },
-        method: 'POST',
-        data: {
-          card: this.card,
-          deck_id: this.deck.deck_id,
-        },
-      };
-      let result;
-      await axios(options)
-        .then(response => {
-          result = response.data;
-          console.log('new card posted, result: ', result);
-          chrome.runtime.sendMessage({ cloudSync: true });
-          // window.close();
-        })
-        .catch(function(err) {
-          // window.close();
-          throw new Error(err);
-        });
-    },
-    putCard: async function() {
-      const options = {
-        url: this.serverUrl + '/put_card',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-access-token': this.jwt,
-        },
-        method: 'PUT',
-        data: {
-          card: this.card,
-          deck_id: this.deck.deck_id,
-        },
-      };
-      let result;
-      console.log('putting card', options.data);
-      await axios(options)
-        .then(response => {
-          result = response.data;
-          console.log(' card updated, result: ', result);
-          chrome.runtime.sendMessage({ cloudSync: true });
-          // window.close();
-        })
-        .catch(function(err) {
-          // window.close();
-          throw new Error(err);
-        });
-    },
-    postDeck: async function() {
-      this.deck.edited = new Date().getTime();
-      this.deck.cards = [this.card];
-      const options = {
-        url: this.serverUrl + '/post_deck',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-access-token': this.jwt,
-        },
-        method: 'POST',
-        data: this.deck,
-      };
-      let result;
-      await axios(options)
-        .then(response => {
-          result = response.data;
-          console.log('deck posted, result: ', result);
-          chrome.runtime.sendMessage({ cloudSync: true });
-          // window.close();
-        })
-        .catch(function(err) {
-          // window.close();
-          throw new Error(err);
-        });
     },
     addCardToSchedule(cardId) {
       let dupCount = 0;
@@ -664,7 +595,9 @@ export default {
         this.toggleAddingTag();
       } else {
         card.card_tags.unshift(this.newTagTitle);
-        this.submit(card);
+        this.user_collection.all_card_tags.list.push(this.newTagTitle);
+        this.user_collection.all_card_tags.edited = new Date().getTime();
+        chrome.storage.local.set({ user_collection: this.user_collection });
         this.newTagTitle = '';
         this.toggleAddingTag();
       }
@@ -688,7 +621,7 @@ export default {
 };
 </script>
 
-<style scoped lang="scss">
+<style scoped>
 #card-editor-body {
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.51);
   left: 0px;
@@ -722,7 +655,6 @@ export default {
   top: 15px;
   border-radius: 10px;
   cursor: pointer;
-  font-size: 1.5em;
   padding: 0px 5px 0px;
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.51);
   text-align: left;
@@ -733,7 +665,7 @@ export default {
   transition: max-height 0.5s ease;
 }
 .unfocused {
-  max-height: 5em;
+  max-height: 8em;
 }
 .preview {
   padding: 12px 15px;
@@ -879,16 +811,19 @@ export default {
   text-align: justify;
 }
 .preview >>> p {
-  font-size: 1em;
+  font-size: 1rem;
 }
 .preview >>> p .ql-size-small {
-  font-size: 0.65em;
+  font-size: 0.75rem;
 }
 .preview >>> p .ql-size-large {
-  font-size: 1.5em;
+  font-size: 1.5rem;
 }
 .preview >>> p .ql-size-huge {
-  font-size: 2.5em;
+  font-size: 2.5rem;
+}
+.quill >>> .ql-container.ql-snow {
+  border: 0px;
 }
 
 .quill >>> .ql-toolbar.ql-snow {
@@ -896,15 +831,15 @@ export default {
   border-bottom: 1px solid #ccc;
 }
 .quill >>> p {
-  font-size: 1.5em;
+  font-size: 1rem;
 }
 .quill >>> p .ql-size-small {
-  font-size: 0.75em;
+  font-size: 0.75rem;
 }
 .quill >>> p .ql-size-large {
-  font-size: 2em;
+  font-size: 1.5rem;
 }
 .quill >>> p .ql-size-huge {
-  font-size: 3.5em;
+  font-size: 2.5rem;
 }
 </style>

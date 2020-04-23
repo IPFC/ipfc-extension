@@ -114,9 +114,6 @@
 </template>
 <script>
 import { BForm, BFormInvalidFeedback, BFormInput, BAlert } from 'bootstrap-vue';
-import defaultCollection from '../assets/defaultCollection.json';
-
-const axios = require('axios');
 export default {
   name: 'Login',
   components: { BForm, BFormInvalidFeedback, BFormInput, BAlert },
@@ -135,22 +132,6 @@ export default {
       loggingIn: false,
       showSignUp: false,
     };
-  },
-  mounted() {
-    const that = this;
-    chrome.runtime.onMessage.addListener(function(msg) {
-      if (msg.failedLogin) {
-        console.log('failed login');
-        that.loggingIn = false;
-        that.failedLogin = true;
-        that.apiErrorMsg = msg.apiErrorMsg;
-      }
-      if (msg.loginSuccess) {
-        console.log('loginSuccess');
-        that.loggingIn = false;
-        that.$emit('loginSuccess');
-      }
-    });
   },
   computed: {
     emailValidation() {
@@ -257,6 +238,22 @@ export default {
       }
     },
   },
+  mounted() {
+    const that = this;
+    chrome.runtime.onMessage.addListener(function(msg) {
+      if (msg.failedLogin) {
+        console.log('failed login');
+        that.loggingIn = false;
+        that.failedLogin = true;
+        that.apiErrorMsg = msg.apiErrorMsg;
+      }
+      if (msg.loginSuccess) {
+        console.log('loginSuccess');
+        that.loggingIn = false;
+        that.$emit('loginSuccess');
+      }
+    });
+  },
   methods: {
     login() {
       this.loggingIn = true;
@@ -277,93 +274,6 @@ export default {
         pinata_api: this.input.pinataApi,
         pinata_key: this.input.pinataSecret,
       });
-    },
-    OcallAPI(url, headers, method, data = null, callback = null) {
-      const that = this;
-      const options = {
-        url: url,
-        headers: headers,
-        method: method,
-      };
-      if (data !== null) {
-        options.data = data;
-      }
-      // console.log('options', options);
-      axios(options)
-        .then(response => {
-          data = response.data;
-          // console.log('data', data);
-          if (callback !== null) {
-            callback(data, that);
-            return data;
-          } else return data;
-        })
-        .catch(function(err) {
-          that.failedLogin = true;
-          that.apiErrorMsg = err;
-        });
-    },
-    Ologin() {
-      this.loggingIn = true;
-      this.failedLogin = false;
-      const loginURL = this.serverUrl + '/login';
-      const username = this.input.email;
-      const password = this.input.password;
-      const headers = {
-        'Content-Type': 'application/json',
-        Authorization: 'Basic ' + btoa(username + ':' + password),
-      };
-      const loginCallback = function(data, that) {
-        if (!data.token) {
-          that.failedLogin = true;
-          that.apiErrorMsg = data.error;
-        } else {
-          chrome.storage.local.set({ jwt: data.token });
-          chrome.storage.local.set({ pinata_keys: data.pinata_keys });
-          that.getMeta(data.token, that);
-        }
-      };
-      this.callAPI(loginURL, headers, 'GET', null, loginCallback);
-    },
-    OgetMeta(token, that) {
-      console.log('token', token);
-      const getMetaHeaders = {
-        'Content-Type': 'application/json',
-        'x-access-token': token,
-      };
-      const getMetaURL = that.serverUrl + '/get_decks_meta_and_collection';
-      const getMetaCallback = function(data) {
-        chrome.storage.local.set({
-          user_collection: data.user_collection,
-          decks_meta: data.decks_meta,
-        });
-        that.loggingIn = false;
-        that.$emit('loginSuccess');
-        chrome.runtime.sendMessage({ cloudSync: true });
-      };
-      this.callAPI(getMetaURL, getMetaHeaders, 'GET', null, getMetaCallback);
-    },
-    OSignUp() {
-      this.loggingIn = true;
-      this.failedLogin = false;
-      const signupURL = this.serverUrl + '/sign_up';
-      const data = {
-        email: this.input.email,
-        password: this.input.password,
-        pinata_api: this.input.pinataApi,
-        pinata_key: this.input.pinataSecret,
-        user_collection: defaultCollection.user_collection,
-      };
-      const headers = { 'Content-Type': 'application/json' };
-      const signupCallback = function(data, that) {
-        if (!data.message) {
-          that.failedLogin = true;
-          that.apiErrorMsg = data.error;
-        } else {
-          that.login();
-        }
-      };
-      this.callAPI(signupURL, headers, 'POST', data, signupCallback);
     },
     toggleShowSignUp() {
       this.showSignUp = !this.showSignUp;

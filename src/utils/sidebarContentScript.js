@@ -1,16 +1,25 @@
 window.addEventListener('focus', resize());
 
+chrome.runtime.onMessage.addListener(msg => {
+  if (msg.resizeSidebar) resize();
+});
+
 function resize() {
-  // console.log('resize called');
-  const updateData = {
-    mainWinLeft: window.screenLeft,
-    mainWinWidth: window.outerWidth,
-  };
-  updateData.height = window.outerHeight;
-  updateData.top = window.screenTop;
-  // check in sidebar if bar had been on the right or left, the determine top and left
-  if (!window.location.href.startsWith('chrome-extension'))
-    chrome.runtime.sendMessage({ sidebarResize: true, updateData: updateData });
+  chrome.storage.local.get(['lastActiveTabUrl'], items => {
+    // console.log('resize called');
+    if (window.location.href === items.lastActiveTabUrl) {
+      const updateData = {
+        mainWinLeft: window.screenLeft,
+        mainWinWidth: window.outerWidth,
+      };
+      updateData.height = window.outerHeight;
+      updateData.top = window.screenTop;
+      chrome.runtime.sendMessage({
+        sidebarResize: true,
+        updateData: updateData,
+      });
+    }
+  });
 }
 
 var oldX = window.screenX;

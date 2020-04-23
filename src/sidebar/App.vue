@@ -24,7 +24,7 @@
         <p class="ml-3 mb-0" v-text="connectionMsg"></p
       ></b-row>
       <b-row id="options-row" class="mt-3 ml-3 mb-n2">
-        <p class="mr-2 text-muted">show card backs</p>
+        <p class="mr-2 text-muted">card backs</p>
         <toggle-button
           v-model="showCardBacks"
           :width="60"
@@ -121,6 +121,9 @@ export default {
     showCardBacks() {
       this.refreshCardsKey++;
     },
+    syncing() {
+      this.loadSidebar();
+    },
   },
   created() {
     const that = this;
@@ -128,8 +131,9 @@ export default {
       chrome.runtime.sendMessage({ sidebarWinId: win.id });
       that.sidebarWinId = win.id;
     });
-    chrome.runtime.onMessage.addListener(function(msg) {
+    chrome.runtime.onMessage.addListener(function(msg, sender) {
       // resize function
+      console.log('sidebarResize recieved:  msg, sender', msg, sender);
       if (msg.sidebarResize) {
         const updateData = msg.updateData;
         that.resizeSidebarWindow(that.sidebarWinId, updateData);
@@ -150,21 +154,12 @@ export default {
         });
       }
       if (msg.activeTabChanged) {
-        if (that.selectedTab === 'page-mine') {
-          that.loadPageMine();
-        } else if (that.selectedTab === 'page-all') {
-          that.loadpageAll();
-        }
+        console.log('activeTabChanged');
+        that.loadSidebar();
       }
       if (msg.orderRefreshed) {
         // console.log('orderRefreshed');
-        if (that.selectedTab === 'page-mine') {
-          that.loadPageMine();
-        } else if (that.selectedTab === 'mine-all') {
-          that.loadMineAll();
-        } else if (that.selectedTab === 'page-all') {
-          that.loadpageAll();
-        }
+        that.loadSidebar();
       }
       if (msg.syncing) {
         this.syncing = msg.value;
@@ -188,18 +183,20 @@ export default {
           that.windowSetting = 'in-other-window';
         }
         that.userCollection = items.user_collection;
-        if (that.selectedTab === 'mine-all') {
-          that.loadMineAll();
-        } else if (that.selectedTab === 'page-mine') {
-          that.loadPageMine();
-        } else if (that.selectedTab === 'page-all') {
-          that.loadpageAll();
-        }
+        that.loadSidebar();
       }
     });
-    console.log('navbar ref', this.$refs.theNavbar);
   },
   methods: {
+    loadSidebar() {
+      if (this.selectedTab === 'mine-all') {
+        this.loadMineAll();
+      } else if (this.selectedTab === 'page-mine') {
+        this.loadPageMine();
+      } else if (this.selectedTab === 'page-all') {
+        this.loadpageAll();
+      }
+    },
     loadMineAll() {
       const that = this;
       chrome.storage.local.get(['websites', 'highlightsViewMode', 'lastActiveTabUrl'], items => {
@@ -395,7 +392,7 @@ export default {
       // if mineAndOthersWebsites[url].cards.length is the same as others + websites, then we are done
       // otherwise we need to refresh the page and try again
       if (!isEmpty(mineAndOthersWebsites))
-        if (!isEmpty(mineAndOthersWebsites[url]))
+        if (!isEmpty(mineAndOthersWebsites[url])) {
           if (!isEmpty(mineAndOthersWebsites[url].cards)) {
             const combinedCardIds = [];
             if (!isEmpty(websites[url].cards))
@@ -407,7 +404,14 @@ export default {
               this.loadingOthers = false;
               return null;
             }
+          } else {
+            this.loadingOthers = false;
+            return null;
           }
+        } else {
+          this.loadingOthers = false;
+          return null;
+        }
       chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
       return null;
     },
@@ -419,25 +423,11 @@ export default {
     },
     async switchTab(tab) {
       this.selectedTab = tab;
-      if (tab === 'mine-all') {
-        this.loadMineAll();
-      }
-      if (tab === 'page-mine') {
-        this.loadPageMine();
-      }
-      if (tab === 'page-all') {
-        this.loadpageAll();
-      }
+      this.loadSidebar();
     },
     refreshDeck() {
       this.refreshingDeck = true;
-      if (this.selectedTab === 'mine-all') {
-        this.loadMineAll();
-      } else if (this.selectedTab === 'page-mine') {
-        this.loadPageMine();
-      } else if (this.selectedTab === 'page-all') {
-        this.loadpageAll();
-      }
+      this.loadSidebar();
       this.refreshingDeck = false;
     },
     editCard(card) {
@@ -576,7 +566,7 @@ export default {
   box-shadow: 0px 0px 15px 5px rgba(0, 0, 0, 0.1);
   -webkit-transform: scale(1, 1);
   transform: scale(1, 1);
-  transition: transform 0.15s, margin 0.15s, box-shadow 0.15s, font-size 0.15s ease-in-out;
+  transition: transform 0.15s, margin 0.15s, box-shadow 0.15s, ease-in-out;
   margin: 10px 10px;
   cursor: pointer;
   font-size: 0.8rem;
@@ -585,7 +575,7 @@ export default {
   box-shadow: 0px 0px 20px 10px rgba(0, 0, 0, 0.3);
   -webkit-transform: scale(1.05, 1);
   transform: scale(1.05, 1);
-  transition: transform 0.15s, margin 0.15s, box-shadow 0.15s, font-size 0.15s ease-in-out;
+  transition: transform 0.15s, margin 0.15s, box-shadow 0.15s, ease-in-out;
   margin: 10px 5px;
   font-size: 0.9rem;
 }

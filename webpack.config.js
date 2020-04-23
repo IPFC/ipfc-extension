@@ -15,7 +15,6 @@ const config = {
     background: './background.js',
     // 'contentStyles.css': './contentStyles.css',
     'highlighter/highlighter': './highlighter/highlighter.js',
-    'highlighter/removeHighlights': './highlighter/removeHighlights.js',
     'popup/popup': './popup/popup.js',
     'cardEditor/cardEditor': './cardEditor/cardEditor.js',
     'options/options': './options/options.js',

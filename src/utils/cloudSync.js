@@ -1,6 +1,7 @@
 import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { sendMesageToAllTabs } from '../background';
+import { putCard, postCard, postDeck } from '../highlighter/storageManager';
 const axios = require('axios');
 
 const syncStatus = {
@@ -8,6 +9,134 @@ const syncStatus = {
   syncFailed: false,
   syncingBlockedBySyncing: false,
 };
+
+const cloudSync = async function(skipEqualityCheck) {
+  console.log('    asyncCloudSync called, syncing status', syncStatus.syncing, timestamp());
+  if (syncStatus.syncing) {
+    console.log('    syncing blocked by concurrent sync', timestamp());
+    syncStatus.syncingBlockedBySyncing = true;
+    return null;
+  } else syncStatus.syncingBlockedBySyncing = false;
+  syncStatus.syncing = true;
+  sendOutMessage({ syncing: true, value: true });
+  try {
+    let serverUrl;
+    chrome.storage.sync.get(['serverUrl'], items => {
+      serverUrl = items.serverUrl;
+    });
+    const storage = await getStorage();
+    // console.log('    getStorage results', storage);
+    const jwt = storage.jwt;
+    const lastSyncsUserCollection = storage.lastSyncsUserCollection;
+    const lastSyncsWebsites = storage.lastSyncsWebsites;
+    let localUserCollection = storage.localUserCollection;
+    let localWebsites = storage.localWebsites;
+    const initialUserCollection = JSON.parse(JSON.stringify(localUserCollection));
+    const initialWebsites = JSON.parse(JSON.stringify(localWebsites));
+    const uploadFailedCardsPut = storage.uploadFailedCardsPut;
+    const uploadFailedCardsPost = storage.uploadFailedCardsPost;
+    const uploadFailedDecksPost = storage.uploadFailedDecksPost;
+
+    await uploadFailedItems(
+      jwt,
+      serverUrl,
+      uploadFailedDecksPost,
+      uploadFailedCardsPut,
+      uploadFailedCardsPost
+    );
+
+    if (!skipEqualityCheck) {
+      const equal = await checkEquality(
+        lastSyncsWebsites,
+        lastSyncsUserCollection,
+        localWebsites,
+        localUserCollection
+      );
+      if (equal) {
+        syncStatus.syncing = false;
+        sendOutMessage({ syncing: true, value: false });
+        sendOutMessage({ syncNotUpToDate: true, value: false });
+        return null;
+      }
+    }
+
+    const serverCollection = await getMetaData(jwt, serverUrl);
+    // console.log('    serverCollection', serverCollection);
+
+    localUserCollection = await syncHighlightUrls(
+      jwt,
+      serverUrl,
+      localWebsites,
+      localUserCollection,
+      serverCollection,
+      initialUserCollection
+    );
+
+    localUserCollection = await syncUserCollection(
+      jwt,
+      serverUrl,
+      localUserCollection,
+      serverCollection,
+      initialUserCollection
+    );
+
+    const serverWebsites = await getWebsitesMeta(jwt, serverUrl);
+
+    const comparison = await compareLocalAndServerWebsites(
+      localWebsites,
+      serverWebsites,
+      localUserCollection.user_id
+    );
+    const localNewer = comparison.localNewer;
+    const serverNewer = comparison.serverNewer;
+    localWebsites = comparison.localWebsites;
+
+    localWebsites = await removeDeletedFromLocal(localWebsites);
+
+    const getWebsitesSelectedContentResults = await getNewerFromServer(jwt, serverUrl, serverNewer);
+
+    const saved = await saveNewerToLocal(
+      getWebsitesSelectedContentResults,
+      localWebsites,
+      localUserCollection,
+      initialWebsites
+    );
+    if (!saved) {
+      console.log('    collection changed while syncing, abort and restart sync', timestamp());
+      syncStatus.syncing = false;
+      cloudSync(true);
+      return null;
+    }
+
+    await uploadNewerToServer(jwt, serverUrl, localNewer);
+    console.log(
+      '    sync complete, was syncingBlockedBySyncing?',
+      syncStatus.syncingBlockedBySyncing,
+      timestamp()
+    );
+    if (syncStatus.syncingBlockedBySyncing) {
+      syncStatus.syncing = false;
+      cloudSync();
+      return null;
+    } else {
+      // success!
+      syncStatus.syncing = false;
+      sendOutMessage({ syncing: true, value: false });
+      sendOutMessage({ syncNotUpToDate: true, value: false });
+    }
+  } catch (error) {
+    console.log('    sync error', error, timestamp());
+    syncStatus.syncing = false;
+    sendOutMessage({ syncing: true, value: false });
+    sendOutMessage({ syncNotUpToDate: true, value: true });
+    return null;
+  }
+};
+function sendOutMessage(msg) {
+  // because the popup also needs to hear the message, so sendMessageToAllTabs won't reach it
+  sendMesageToAllTabs(msg);
+  chrome.runtime.sendMessage(msg);
+}
 function timestamp() {
   const now = new Date();
   return `${now.getMinutes()}:${now.getSeconds()}:${now.getMilliseconds()}`;
@@ -49,8 +178,9 @@ async function callAPI(data) {
     })
     .catch(function(err) {
       console.log(err, timestamp());
+      sendOutMessage({ syncing: true, value: false });
+      sendOutMessage({ syncNotUpToDate: true, value: true });
       throw new Error(err);
-      // sendMesageToAllTabs({ syncing: true, value: false });
     });
   return result;
 }
@@ -66,6 +196,8 @@ function getStorage() {
         'websites',
         'decks_meta',
         'jwt',
+        'uploadFailedCards',
+        'uploadFailedDecks',
       ],
       function(items) {
         // console.log('    items', items);
@@ -78,6 +210,8 @@ function getStorage() {
         returnData.localUserCollection = items.user_collection;
         returnData.lastSyncsUserCollection = items.lastSyncsUserCollection;
         returnData.lastSyncsWebsites = items.lastSyncsWebsites;
+        returnData.uploadFailedCards = items.uploadFailedCards;
+        returnData.uploadFailedDecks = items.uploadFailedDecks;
         if (items.jwt !== undefined) {
           resolve(returnData);
         } else {
@@ -110,6 +244,29 @@ async function checkEquality(
   }
   console.log('    last sync unequal', timestamp());
   return false;
+}
+async function uploadFailedItems(
+  jwt,
+  serverUrl,
+  uploadFailedDecksPost,
+  uploadFailedCardsPut,
+  uploadFailedCardsPost
+) {
+  if (!isEmpty(uploadFailedDecksPost)) {
+    for (const entry of uploadFailedCardsPost) {
+      postDeck(jwt, serverUrl, entry.card, entry.deck);
+    }
+  }
+  if (!isEmpty(uploadFailedCardsPut)) {
+    for (const entry of uploadFailedCardsPost) {
+      putCard(jwt, serverUrl, entry.card, entry.deck_id);
+    }
+  }
+  if (!isEmpty(uploadFailedCardsPost)) {
+    for (const entry of uploadFailedCardsPost) {
+      postCard(jwt, serverUrl, entry.card, entry.deck_id);
+    }
+  }
 }
 async function getMetaData(jwt, serverUrl) {
   // when I move to an exported function, I can set syncing as a global variable on the window  window.syncing = true
@@ -183,11 +340,7 @@ async function syncHighlightUrls(
       ) {
         chrome.storage.local.get(['user_collection'], function(items) {
           if (
-            !isEqual(initialUserCollection.highlight_urls, items.user_collection.highlight_urls) ||
-            !isEqual(
-              initialUserCollection.extension_settings,
-              items.user_collection.extension_settings
-            )
+            !isEqual(initialUserCollection.highlight_urls, items.user_collection.highlight_urls)
           ) {
             console.log(
               '    collection changed while syncing, abort and restart sync',
@@ -231,67 +384,71 @@ async function syncHighlightUrls(
   }
   return localUserCollection;
 }
-async function syncSettings(jwt) {
-  // serverDecksMeta = metaDataCallResults.decks_meta;
-  // sync settings changes
-  // if (serverCollection.extension_settings !== localUserCollection.extension_settings) {
-  //   if (
-  //     serverCollection.extension_settings.edited > localUserCollection.extension_settings.edited
-  //   ) {
-  // localUserCollection.extension_settings = serverCollection.extension_settings;
-  // chrome.storage.local.set({ extension_settings: extension_settings });
-  //   }
-  //   if (
-  //     serverCollection.extension_settings.edited < localUserCollection.extension_settings.edited
-  //   ) {
-  //     console.log('    posting settings');
-  //     const putSettingsData = {
-  //       url: serverUrl + '/put_user_collection',
-  //       jwt: jwt,
-  //       method: 'PUT',
-  //       data: {
-  //         extension_settings: localUserCollection.extension_settings,
-  //       },
-  //     };
-  //     let putSettingsResult = null;
-  //     await callAPI(putSettingsData).then(data => {
-  //       putSettingsResult = data;
-  //     });
-  //     console.log('        PUT webapp settings', putSettingsResult);
-  //     if (putSettingsResult === null) {
-  //       return null;
-  //     }
-  //   }
-  // }
-}
-async function syncSchedule(jwt) {
-  // sync schedule
-  // if (!isEqual(serverCollection.schedule, localUserCollection.schedule)) {
-  //   if (serverCollection.schedule.edited > localUserCollection.schedule.edited) {
-  //     localUserCollection.schedule = serverCollection.schedule;
-  //     chrome.storage.local.set({ user_collection: localUserCollection });
-  //   }
-  //   if (serverCollection.schedule.edited < localUserCollection.schedule.edited) {
-  //     console.log('    posting schedule');
-  //     const putSettingsData = {
-  //       url: serverUrl + '/put_user_collection',
-  //       jwt: jwt,
-  //       method: 'PUT',
-  //       data: {
-  //         schedule: localUserCollection.schedule,
-  //       },
-  //     };
-  //     let putSettingsResult = null;
-  //     await callAPI(putSettingsData).then(data => {
-  //       putSettingsResult = data;
-  //     });
-  //     console.log('       Put schedule changes', putSettingsResult);
-  //     if (putSettingsResult === null) {
-  //       toggleSyncFailed(true);
-  //       return null;
-  //     }
-  //   }
-  // }
+async function syncUserCollection(
+  jwt,
+  serverUrl,
+  localUserCollection,
+  serverCollection,
+  initialUserCollection
+) {
+  // sync settings, schedule, all_card_tags, //later extension settings. any one with 'edited'
+  for (const section in localUserCollection) {
+    if (section === 'webapp_settings' || section === 'schedule' || section === 'all_card_tags') {
+      if (isEmpty(serverCollection[section]))
+        serverCollection[section] = {
+          edited: 0,
+        };
+      if (isEmpty(localUserCollection[section]))
+        localUserCollection[section] = {
+          edited: 0,
+        };
+      if (!isEqual(serverCollection[section], localUserCollection[section])) {
+        console.log(
+          'serverCollection[section], userCollection[section]',
+          serverCollection[section],
+          localUserCollection[section]
+        );
+        if (serverCollection[section].edited > localUserCollection[section].edited) {
+          chrome.storage.local.get(['user_collection'], function(items) {
+            if (
+              !isEqual(initialUserCollection[section], items.user_collection[section]) ||
+              !isEqual(initialUserCollection[section], items.user_collection[section])
+            ) {
+              console.log(
+                '    collection changed while syncing, abort and restart sync',
+                timestamp()
+              );
+              syncStatus.syncing = false;
+              cloudSync(true);
+              return null;
+            } else {
+              localUserCollection.highlight_urls = serverCollection.highlight_urls;
+              chrome.storage.local.set({
+                user_collection: localUserCollection,
+              });
+            }
+          });
+          localUserCollection[section] = serverCollection[section];
+        } else if (serverCollection[section].edited < localUserCollection[section].edited) {
+          console.log('putting section: ', section);
+          const putSectionData = {
+            url: serverUrl + '/put_user_collection',
+            jwt: jwt,
+            method: 'PUT',
+            data: {
+              [section]: localUserCollection[section],
+            },
+          };
+          let putSectionResult = null;
+          await callAPI(putSectionData).then(data => {
+            putSectionResult = data;
+          });
+          console.log('    PUT section results', putSectionResult);
+        }
+      }
+    }
+  }
+  return localUserCollection;
 }
 async function getWebsitesMeta(jwt, serverUrl) {
   const getWebsitesMetaCall = {
@@ -324,7 +481,6 @@ async function compareLocalAndServerWebsites(localWebsites, serverWebsites, user
     if (isEmpty(localWebsites)) serverNewer = serverWebsites;
     else {
       for (const url in serverWebsites) {
-        if (!Object.keys(localWebsites).includes(url)) serverNewer[url] = serverWebsites[url];
         localNewer[url] = {
           cards: [],
           highlights: {},
@@ -335,6 +491,7 @@ async function compareLocalAndServerWebsites(localWebsites, serverWebsites, user
           highlights: {},
           deleted: [],
         };
+        if (!Object.keys(localWebsites).includes(url)) serverNewer[url] = serverWebsites[url];
         for (const lUrl in localWebsites) {
           if (
             !Object.keys(serverWebsites).includes(lUrl) &&
@@ -424,13 +581,13 @@ async function compareLocalAndServerWebsites(localWebsites, serverWebsites, user
                 const mergedDeleted = serverWebsite.deleted.concat(
                   localWebsite.deleted.filter(entry => !serverWebsite.deleted.includes(entry))
                 );
-                console.log(
-                  'mergedDeleted, serverWebsite.deleted, localWebsite.deleted',
-                  mergedDeleted,
-                  serverWebsite.deleted,
-                  localWebsite.deleted,
-                  timestamp()
-                );
+                // console.log(
+                //   'mergedDeleted, serverWebsite.deleted, localWebsite.deleted',
+                //   mergedDeleted,
+                //   serverWebsite.deleted,
+                //   localWebsite.deleted,
+                //   timestamp()
+                // );
                 if (!isEqual(mergedDeleted, serverWebsite.deleted))
                   localNewer[url].deleted = localWebsite.deleted;
                 if (!isEqual(mergedDeleted, localWebsite.deleted)) {
@@ -654,6 +811,32 @@ async function saveNewerToLocal(
   // bug =deleted is not in local websites.....
   // save to local
   if (!isEqual(initialWebsites, currentWebsites)) {
+    for (const iWebsite in initialWebsites) {
+      if (!Object.keys(currentWebsites).includes(iWebsite)) console.log(iWebsite);
+      for (const cWebsite in currentWebsites) {
+        if (!Object.keys(initialWebsites).includes(cWebsite)) console.log(cWebsite);
+        if (iWebsite === cWebsite) {
+          if (!isEqual(initialWebsites[iWebsite], currentWebsites[cWebsite])) {
+            for (const iItem in initialWebsites[iWebsite]) {
+              if (!Object.keys(cWebsite).includes(iItem))
+                console.log('cWebsite not included', initialWebsites[iWebsite][iItem]);
+              for (const cItem in currentWebsites[cWebsite]) {
+                if (!Object.keys(iWebsite).includes(cItem))
+                  console.log('iWebsite not included', currentWebsites[cWebsite][cItem]);
+                if (iItem === cItem) {
+                  if (!isEqual(iItem, cItem))
+                    console.log(
+                      'difference here',
+                      currentWebsites[cWebsite][cItem],
+                      initialWebsites[iWebsite][iItem]
+                    );
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     return false;
   } else {
     if (isEmpty(localWebsites)) localWebsites = {};
@@ -687,117 +870,5 @@ async function uploadNewerToServer(jwt, serverUrl, localNewer) {
     }
   }
 }
-
-const cloudSync = async function(skipEqualityCheck) {
-  console.log('    asyncCloudSync called, syncing status', syncStatus.syncing, timestamp());
-  if (syncStatus.syncing) {
-    console.log('    syncing blocked by concurrent sync', timestamp());
-    syncStatus.syncingBlockedBySyncing = true;
-    return null;
-  } else syncStatus.syncingBlockedBySyncing = false;
-  syncStatus.syncing = true;
-  sendMesageToAllTabs({ syncing: true, value: true });
-  try {
-    let serverUrl;
-    chrome.storage.sync.get(['serverUrl'], items => {
-      serverUrl = items.serverUrl;
-    });
-    const storage = await getStorage();
-    // console.log('    getStorage results', storage);
-    const jwt = storage.jwt;
-    const lastSyncsUserCollection = storage.lastSyncsUserCollection;
-    const lastSyncsWebsites = storage.lastSyncsWebsites;
-    let localUserCollection = storage.localUserCollection;
-    let localWebsites = storage.localWebsites;
-    const initialUserCollection = JSON.parse(JSON.stringify(localUserCollection));
-    let initialWebsites;
-    isEmpty(initialWebsites)
-      ? (initialWebsites = localWebsites)
-      : (initialWebsites = JSON.parse(JSON.stringify(localWebsites)));
-
-    if (!skipEqualityCheck) {
-      const equal = await checkEquality(
-        lastSyncsWebsites,
-        lastSyncsUserCollection,
-        localWebsites,
-        localUserCollection
-      );
-      if (equal) {
-        syncStatus.syncing = false;
-        sendMesageToAllTabs({ syncing: true, value: false });
-        sendMesageToAllTabs({ syncNotUpToDate: true, value: false });
-        return null;
-      }
-    }
-
-    const serverCollection = await getMetaData(jwt, serverUrl);
-    // console.log('    serverCollection', serverCollection);
-
-    localUserCollection = await syncHighlightUrls(
-      jwt,
-      serverUrl,
-      localWebsites,
-      localUserCollection,
-      serverCollection,
-      initialUserCollection
-    );
-
-    // to add later:
-    syncSettings();
-    syncSchedule();
-
-    const serverWebsites = await getWebsitesMeta(jwt, serverUrl);
-
-    const comparison = await compareLocalAndServerWebsites(
-      localWebsites,
-      serverWebsites,
-      localUserCollection.user_id
-    );
-    const localNewer = comparison.localNewer;
-    const serverNewer = comparison.serverNewer;
-    localWebsites = comparison.localWebsites;
-
-    localWebsites = await removeDeletedFromLocal(localWebsites);
-
-    const getWebsitesSelectedContentResults = await getNewerFromServer(jwt, serverUrl, serverNewer);
-
-    const saved = await saveNewerToLocal(
-      getWebsitesSelectedContentResults,
-      localWebsites,
-      localUserCollection,
-      initialWebsites
-    );
-    if (!saved) {
-      console.log('    collection changed while syncing, abort and restart sync', timestamp());
-      syncStatus.syncing = false;
-      cloudSync(true);
-      return null;
-    }
-
-    await uploadNewerToServer(jwt, serverUrl, localNewer);
-    console.log(
-      '    sync complete, was syncingBlockedBySyncing?',
-      syncStatus.syncingBlockedBySyncing,
-      timestamp()
-    );
-    // sendMesageToAllTabs({ syncing: true, value: false });
-    if (syncStatus.syncingBlockedBySyncing) {
-      syncStatus.syncing = false;
-      cloudSync();
-      return null;
-    } else {
-      // success!
-      syncStatus.syncing = false;
-      sendMesageToAllTabs({ syncing: true, value: false });
-      sendMesageToAllTabs({ syncNotUpToDate: true, value: false });
-    }
-  } catch (error) {
-    console.log('    sync error', error, timestamp());
-    syncStatus.syncing = false;
-    sendMesageToAllTabs({ syncing: true, value: false });
-    sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
-    return null;
-  }
-};
 
 export { cloudSync, syncStatus };

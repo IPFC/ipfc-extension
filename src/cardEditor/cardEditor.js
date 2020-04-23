@@ -6,7 +6,7 @@ import { LayoutPlugin, BButton } from 'bootstrap-vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import VueDOMPurifyHTML from 'vue-dompurify-html';
 import 'highlight.js/styles/monokai-sublime.css';
-import Highlight from '../utils/syntaxHighlight';
+import { Highlight } from '../utils/syntaxHighlight';
 
 import {
   // faMinusCircle,
@@ -59,9 +59,9 @@ Vue.component(
 );
 Vue.component('b-button', BButton);
 
+Vue.use(Highlight);
 Vue.use(VueDOMPurifyHTML);
 Vue.use(LayoutPlugin);
-Vue.use(Highlight);
 
 global.browser = require('webextension-polyfill');
 Vue.prototype.$browser = global.browser;

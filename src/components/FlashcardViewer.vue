@@ -9,11 +9,7 @@
         @click="cardClicked()"
       >
         <b-img-lazy v-if="card.front_image" class="card-image" :src="card.front_image"></b-img-lazy>
-        <p
-          v-highlight
-          :class="card.front_image ? 'text-with-img' : ''"
-          class="card-text front-text"
-        >
+        <p :class="card.front_image ? 'text-with-img' : ''" class="card-text front-text">
           {{ card.front_text }}
         </p>
         <font-awesome-icon
@@ -30,7 +26,7 @@
         @click="cardClicked()"
       >
         <b-img-lazy v-if="card.back_image" class="card-image" :src="card.back_image"></b-img-lazy>
-        <p v-highlight :class="card.back_image ? 'text-with-img' : ''" class="card-text back-text">
+        <p :class="card.back_image ? 'text-with-img' : ''" class="card-text back-text">
           {{ card.back_text }}
         </p>
       </div>

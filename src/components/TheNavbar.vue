@@ -2,7 +2,7 @@
   <div id="the-navbar">
     <b-container>
       <b-row id="nav-row">
-        <b-col class="d-flex p-0">
+        <b-col :class="inSidebar ? 'd-flex p-0' : 'd-flex py-0 px-1'">
           <img
             v-if="inSidebar"
             src="/icons/hamburger.svg"

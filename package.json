@@ -1,7 +1,7 @@
 {
   "name": "ipfc-extension",
   "version": "1.0.0",
-  "description": "A browser extension for Inter Planetary Flash Cards",
+  "description": "Quickly make flashcards and highlights from websites and sync them to multiplatform flashcard apps for review",
   "author": "Jacob Cohen-Rosenthal <xiaokourou@gmail.com>",
   "license": "MIT",
   "engines": {
