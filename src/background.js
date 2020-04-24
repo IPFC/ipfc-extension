@@ -4,6 +4,7 @@ import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { cloudSync, syncStatus } from './utils/cloudSync';
 import { login, signup } from './utils/loginLogout';
+import { createSidebar } from './utils/sidebarContentScript';
 const uuidv4 = require('uuid/v4');
 
 const debounce = require('lodash/debounce');
@@ -37,6 +38,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender) {
     chrome.storage.local.set({ sidebarWinId: msg.sidebarWinId });
   }
   if (msg.highlightSelection) {
+    console.log('msg.highlightSelection, open newcard editor');
     chrome.storage.local.set({ newCardData: msg.newCardData, toEditCardData: null });
     const editorWindow = {
       type: 'popup',
@@ -49,6 +51,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender) {
     chrome.windows.create(editorWindow);
   }
   if (msg.openEditor) {
+    console.log('msg.openEditor');
     chrome.storage.local.set({ toEditCardData: msg.toEditCardData, newCardData: null });
     const editorWindow = {
       type: 'popup',
@@ -59,6 +62,9 @@ chrome.runtime.onMessage.addListener(function(msg, sender) {
       top: 0,
     };
     chrome.windows.create(editorWindow);
+  }
+  if (msg.createSidebar) {
+    createSidebar();
   }
   if (msg.newBlankCard) {
     chrome.storage.local.get(['lastActiveTabUrl', 'user_collection'], items => {
@@ -109,9 +115,9 @@ chrome.runtime.onMessage.addListener(function(msg, sender) {
     if (msg.refreshOrder) SendOutRefresh(null, true);
     else SendOutRefresh(null, null);
   }
-  if (msg.orderRefreshed) {
-    chrome.runtime.sendMessage({ orderRefreshed: true });
-  }
+  // if (msg.orderRefreshed) {
+  //   chrome.runtime.sendMessage({ orderRefreshed: true });
+  // }
   if (msg.updateActiveTab) updateActiveTab();
 });
 
@@ -238,7 +244,23 @@ function checkUserCollectionChanged(oldCollection, newCollection) {
 const sendMesageToAllTabs = function(message) {
   chrome.tabs.query({}, function(tabs) {
     for (let i = 0; i < tabs.length; ++i) {
-      chrome.tabs.sendMessage(tabs[i].id, message);
+      chrome.tabs.get(tabs[i].id, function(tab) {
+        if (
+          !tab.url.startsWith('chrome') &&
+          !tab.url.startsWith('about') &&
+          !tab.url.startsWith('https://addons') &&
+          !tab.url.startsWith('moz-extension')
+        ) {
+          // console.log(tab.url);
+
+          chrome.tabs.sendMessage(tabs[i].id, message, function() {
+            if (chrome.runtime.lastError) {
+              // console.log(chrome.runtime.lastError.message);
+              // console.log(tab.url);
+            }
+          });
+        }
+      });
     }
   });
 };
@@ -296,7 +318,7 @@ function updateActiveTab(refresh) {
     const lastActiveTabUrl = tabs[0].url;
     let lastActiveWindow;
     chrome.windows.getLastFocused(function(win) {
-      // console.log('    win', win);
+      console.log('    win', win);
       lastActiveWindow = win.id;
     });
     chrome.storage.local.get(['lastActiveTabId', 'lastActiveTabUrl', 'sidebarWinId'], function(
@@ -307,16 +329,26 @@ function updateActiveTab(refresh) {
       if (
         items.lastActiveTabId !== lastActiveTabId &&
         lastActiveTabId !== items.sidebarWinId + 1 &&
-        !lastActiveTabUrl.startsWith('chrome')
+        !lastActiveTabUrl.startsWith('chrome') &&
+        !lastActiveTabUrl.startsWith('about') &&
+        !lastActiveTabUrl.startsWith('https://addons') &&
+        !lastActiveTabUrl.startsWith('moz-extension')
       ) {
         chrome.storage.local.set({
           lastActiveTabId: lastActiveTabId,
           lastActiveWindow: lastActiveWindow,
         });
       }
-      if (items.lastActiveTabUrl !== lastActiveTabUrl && !lastActiveTabUrl.startsWith('chrome')) {
+      if (
+        items.lastActiveTabUrl !== lastActiveTabUrl &&
+        !lastActiveTabUrl.startsWith('chrome') &&
+        !lastActiveTabUrl.startsWith('about') &&
+        !lastActiveTabUrl.startsWith('https://addons') &&
+        !lastActiveTabUrl.startsWith('moz-extension')
+      ) {
         chrome.storage.local.set({
           lastActiveTabUrl: lastActiveTabUrl,
+          lastActiveWindow: lastActiveWindow,
         });
         console.log('last active tab set', lastActiveTabUrl);
         chrome.runtime.sendMessage({ activeTabChanged: true });
@@ -346,6 +378,9 @@ chrome.windows.onFocusChanged.addListener(function(windowId) {
       chrome.storage.local.get(['lastActiveTabUrl'], items => {
         if (
           !window.tabs[0].url.startsWith('chrome') &&
+          !window.tabs[0].url.startsWith('about') &&
+          !window.tabs[0].url.startsWith('https://addons') &&
+          !window.tabs[0].url.startsWith('moz-extension') &&
           window.tabs[0].url !== items.lastActiveTabUrl
         ) {
           updateActiveTab();
@@ -361,7 +396,13 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   if (changeInfo.url) {
     // Will this be blocking updates we want? && changeInfo.url !== lastActiveTabUrl
     chrome.storage.local.get(['lastActiveTabUrl'], items => {
-      if (!changeInfo.url.startsWith('chrome') && changeInfo.url !== items.lastActiveTabUrl) {
+      if (
+        !changeInfo.url.startsWith('chrome') &&
+        !changeInfo.url.startsWith('about') &&
+        !changeInfo.url.startsWith('https://addons') &&
+        !changeInfo.url.startsWith('moz-extension') &&
+        changeInfo.url !== items.lastActiveTabUrl
+      ) {
         updateActiveTab(true);
         checkIfHighlightsExist(changeInfo.url, () => {
           SendOutRefresh(changeInfo.url, true);

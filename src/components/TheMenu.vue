@@ -49,7 +49,7 @@ import {
   // BFormSelectOption,
   // BFormGroup,
 } from 'bootstrap-vue';
-import { createSidebar } from '../utils/sidebarContentScript.js';
+// import { createSidebar } from '../utils/sidebarContentScript.js';
 import { isEmpty } from 'lodash';
 const axios = require('axios');
 export default {
@@ -85,7 +85,7 @@ export default {
     chrome.runtime.onMessage.addListener(msg => {
       if (msg.orderRefreshed) {
         // console.log('orderRefreshed');
-        if (that.selectedView === 'mineAndOthers') {
+        if (that.selectedView === 'mineAndOthers' && !this.inSidebar) {
           that.loadpageAll();
         }
       }
@@ -106,8 +106,9 @@ export default {
     },
     openSidebarWindow() {
       chrome.storage.local.set({ runInNewWindow: true });
-      createSidebar();
-      window.close();
+      chrome.runtime.sendMessage({ createSidebar: true }, () => {
+        window.close();
+      });
     },
     logout() {
       chrome.storage.local.clear(() => {
@@ -143,19 +144,12 @@ export default {
       function getStorage() {
         return new Promise((resolve, reject) => {
           chrome.storage.local.get(
-            [
-              'websites',
-              'othersWebsites',
-              'mineAndOthersWebsites',
-              'lastActiveTabUrl',
-              'highlightsViewMode',
-            ],
+            ['websites', 'mineAndOthersWebsites', 'lastActiveTabUrl', 'highlightsViewMode'],
             function(items) {
               console.log('    items', items);
               const returnData = {};
               // let localDecksMeta;  // will need for adding cards to certain decks
               returnData.websites = items.websites;
-              returnData.othersWebsites = items.othersWebsites;
               returnData.mineAndOthersWebsites = items.mineAndOthersWebsites;
               returnData.lastActiveTabUrl = items.lastActiveTabUrl;
               returnData.highlightsViewMode = items.highlightsViewMode;
@@ -197,32 +191,37 @@ export default {
       // otherwise load local and set small spinner
       const mineAndOthersWebsites = storage.mineAndOthersWebsites;
       // then make API call
-      let othersWebsites = storage.othersWebsites;
-      if (!othersWebsites) othersWebsites = {};
       if (!websites[url]) websites[url] = {};
       const apiGetWebsite = await this.callAPI(getPageData);
       console.log('apiGetWebsite', apiGetWebsite);
-      othersWebsites[url] = apiGetWebsite.website;
-      chrome.storage.local.set({ othersWebsites: othersWebsites });
-      // if mineAndOthersWebsites[url].cards.length is the same as others + websites, then we are done
+      const apiWebsite = apiGetWebsite.website;
+      if (isEmpty(apiWebsite)) {
+        this.loadingOthers = false;
+        return null;
+      }
+      // if the number of highlights and numbe rof cards is the same in MineAndothers and in apigetwebstie, were good
+      // if mineAndOthersWebsites[url].orderdCards and orderlessCards.length is the same as the API request then we are done
       // otherwise we need to refresh the page and try again
-      let combinedCardIds;
+      let apiHighlightCount = 0;
+      let apiCardCount = 0;
+      let localHighlightCount = 0;
+      let localCardCount = 0;
+      if (apiWebsite.cards) apiCardCount = apiWebsite.cards.length;
+      if (apiWebsite.highlights) apiHighlightCount = Object.keys(apiWebsite.highlights).length;
       if (mineAndOthersWebsites)
-        if (mineAndOthersWebsites[url])
-          if (mineAndOthersWebsites[url].cards) {
-            combinedCardIds = [];
-            if (!isEmpty(websites[url].cards))
-              for (const card of websites[url].cards) combinedCardIds.push(card.card_id);
-            if (!isEmpty(othersWebsites[url].cards))
-              for (const card of othersWebsites[url].cards)
-                if (!combinedCardIds.includes(card.card_id)) combinedCardIds.push(card.card_id);
-            if (mineAndOthersWebsites[url].cards.length === combinedCardIds.length) {
-              this.loadingOthers = false;
-              return null;
-            }
-          }
-      chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
-      return null;
+        if (mineAndOthersWebsites[url]) {
+          if (mineAndOthersWebsites[url].orderedCards && mineAndOthersWebsites.orderlessCards)
+            localCardCount =
+              mineAndOthersWebsites[url].orderedCards.length +
+              mineAndOthersWebsites.orderlessCards.length;
+          if (mineAndOthersWebsites[url].highlights)
+            localHighlightCount = Object.keys(mineAndOthersWebsites[url].highlights).length;
+        }
+      if (apiHighlightCount !== localHighlightCount || apiCardCount !== localCardCount) {
+        mineAndOthersWebsites[url] = apiWebsite;
+        chrome.storage.local.set({ mineAndOthersWebsites: mineAndOthersWebsites });
+        chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+      } else this.loadingOthers = false;
     },
   },
 };

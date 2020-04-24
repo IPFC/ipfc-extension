@@ -43,12 +43,11 @@ const getHighlightsOrder = function() {
   return highlightsInOrder;
 };
 const storeHighlightsOrder = function(url, callback) {
-  // and creates mineAndOthers
+  // and creates mineAndOthers ordered and orderless cards
   console.log('storeHighlightsOrder');
-  chrome.storage.local.get(['websites', 'othersWebsites', 'highlightsViewMode'], items => {
+  chrome.storage.local.get(['websites', 'mineAndOthersWebsites', 'highlightsViewMode'], items => {
     let websites;
-    if (items.highlightsViewMode === 'mineAndOthers')
-      websites = combineMineAndOthersWebsites(items.websites, items.othersWebsites);
+    if (items.highlightsViewMode === 'mineAndOthers') websites = items.mineAndOthersWebsites;
     else websites = items.websites;
     if (isEmpty(websites)) {
       if (callback) callback();
@@ -63,7 +62,7 @@ const storeHighlightsOrder = function(url, callback) {
       const sortedCards = getCardsInOrder(websites[url].cards, websites[url].order);
       websites[url].orderedCards = sortedCards.orderedCards;
       websites[url].orderlessCards = sortedCards.orderlessCards;
-      if (items.highlightsViewMode !== 'mineAndOthers') {
+      if (items.highlightsViewMode === 'mine') {
         chrome.storage.local.set({ websites: websites }, () => {
           if (callback) callback();
         });
@@ -325,11 +324,10 @@ const postDeck = async function(jwt, serverUrl, card, deck) {
 };
 const loadThisUrlsHighlights = function(url, callback) {
   // console.log('loadThisUrlsHighlights');
-  chrome.storage.local.get(['websites', 'othersWebsites', 'highlightsViewMode'], function(items) {
+  chrome.storage.local.get(['websites', 'mineAndOthersWebsites', 'highlightsViewMode'], items => {
     // console.log('load highlights items', items);
     let websites;
-    if (items.highlightsViewMode === 'mineAndOthers')
-      websites = combineMineAndOthersWebsites(items.websites, items.othersWebsites);
+    if (items.highlightsViewMode === 'mineAndOthers') websites = items.mineAndOthersWebsites;
     else websites = items.websites;
     if (!websites && items.highlightsViewMode === 'mine') {
       websites = {};
@@ -338,13 +336,11 @@ const loadThisUrlsHighlights = function(url, callback) {
         return null;
       });
     }
-    console.log('websites[url]', websites[url]);
+    // console.log('websites[url]', websites[url]);
     if (!isEmpty(websites[url])) {
       if (!isEmpty(websites[url].highlights)) {
         const highlights = websites[url].highlights;
-        console.log('loadThisUrlsHighlights - loading highlights', highlights);
-        console.log(Object.keys(highlights));
-        console.log(Object.keys(highlights)[Object.keys(highlights).length - 1]);
+        // console.log('loadThisUrlsHighlights - loading highlights', highlights);
         for (const key in highlights) {
           if (key === Object.keys(highlights)[Object.keys(highlights).length - 1]) {
             if (callback) loadHighlight(highlights[key], false, callback);
@@ -507,81 +503,6 @@ const deleteCard = function(url, card, thenDeleteHighlight = true) {
     // });
   });
 };
-function combineMineAndOthersWebsites(websites, othersWebsites) {
-  const combinedWebsites = {};
-  if (isEmpty(websites) && isEmpty(othersWebsites)) return {};
-  if (isEmpty(websites) && !isEmpty(othersWebsites)) return othersWebsites;
-  if (!isEmpty(websites) && isEmpty(othersWebsites)) return websites;
-  for (const url in websites) {
-    const website = websites[url];
-    if (!Object.keys(othersWebsites).includes(url)) combinedWebsites[url] = website;
-    for (const oUrl in othersWebsites) {
-      const oWebsite = othersWebsites[oUrl];
-      if (!Object.keys(websites).includes(oUrl) && !Object.keys(combinedWebsites).includes(oUrl))
-        combinedWebsites[oUrl] = oWebsite;
-      else if (url === oUrl) {
-        const combinedWebsite = {};
-        combinedWebsite.deleted = [];
-        if (!isEmpty(oWebsite.deleted) || !isEmpty(website.deleted)) {
-          if (isEmpty(oWebsite.deleted)) combinedWebsite.deleted = oWebsite.deleted;
-          else if (isEmpty(website.deleted)) combinedWebsite.deleted = website.deleted;
-          else
-            for (const entry of website.deleted)
-              if (!combinedWebsite.deleted.includes(entry)) combinedWebsite.deleted.push(entry);
-        }
-        // console.log(oWebsite.cards, website.cards);
-        if (!isEmpty(oWebsite.cards) || !isEmpty(website.cards)) {
-          if (isEmpty(oWebsite.cards)) combinedWebsite.cards = website.cards;
-          else if (isEmpty(website.cards)) combinedWebsite.cards = oWebsite.cards;
-          else {
-            combinedWebsite.cards = [];
-            const combinedWebsiteCardIds = [];
-            for (const card of website.cards) {
-              if (!combinedWebsite.deleted.includes(card.card_id)) {
-                combinedWebsite.cards.push(card);
-                combinedWebsiteCardIds.push(card.card_id);
-              }
-            }
-            for (const card of oWebsite.cards)
-              if (
-                !combinedWebsite.deleted.includes(card.card_id) &&
-                !combinedWebsiteCardIds.includes(card.card_id)
-              )
-                combinedWebsite.cards.push(card);
-          }
-        }
-        // console.log(oWebsite.highlights, website.highlights);
-        if (!isEmpty(oWebsite.highlights) || !isEmpty(website.highlights)) {
-          if (isEmpty(oWebsite.highlights)) combinedWebsite.highlights = website.highlights;
-          else if (isEmpty(website.highlights)) combinedWebsite.highlights = oWebsite.highlights;
-          else {
-            combinedWebsite.highlights = {};
-            const combinedHighlightIds = [];
-            if (!isEmpty(website.highlights))
-              for (const highlight in website.highlights)
-                if (!combinedWebsite.deleted.includes(highlight)) {
-                  combinedWebsite.highlights[highlight] = website.highlights[highlight];
-                  combinedHighlightIds.push(highlight);
-                }
-            if (!isEmpty(oWebsite.highlights))
-              for (const highlight in oWebsite.highlights)
-                if (
-                  !combinedWebsite.deleted.includes(highlight) &&
-                  !combinedHighlightIds.includes(highlight)
-                )
-                  combinedWebsite.highlights[highlight] = oWebsite.highlights[highlight];
-          }
-        }
-        if (!isEmpty(website.order)) combinedWebsite.order = website.order;
-        if (!isEmpty(website.orderedCards)) combinedWebsite.order = website.orderedCards;
-        if (!isEmpty(website.orderlessCards)) combinedWebsite.order = website.orderlessCards;
-        combinedWebsites[oUrl] = combinedWebsite;
-      }
-    }
-  }
-  // console.log('combined websites', combinedWebsites);
-  return combinedWebsites;
-}
 
 export {
   storeHighlightsOrder,

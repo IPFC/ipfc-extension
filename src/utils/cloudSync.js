@@ -31,7 +31,9 @@ const cloudSync = async function(skipEqualityCheck) {
     const lastSyncsWebsites = storage.lastSyncsWebsites;
     let localUserCollection = storage.localUserCollection;
     let localWebsites = storage.localWebsites;
+    if (isEmpty(localUserCollection)) localUserCollection = {};
     const initialUserCollection = JSON.parse(JSON.stringify(localUserCollection));
+    if (isEmpty(localWebsites)) localWebsites = {};
     const initialWebsites = JSON.parse(JSON.stringify(localWebsites));
     const uploadFailedCardsPut = storage.uploadFailedCardsPut;
     const uploadFailedCardsPost = storage.uploadFailedCardsPost;
@@ -163,7 +165,7 @@ async function callAPI(data) {
   const options = {
     url: data.url,
     headers: {
-      'Content-Type': 'application/json',
+      'content-type': 'application/json',
       'x-access-token': data.jwt,
     },
     method: data.method,
@@ -174,7 +176,7 @@ async function callAPI(data) {
   await axios(options)
     .then(response => {
       result = response.data;
-      // console.log(result);
+      console.log(result);
     })
     .catch(function(err) {
       console.log(err, timestamp());
@@ -208,6 +210,9 @@ function getStorage() {
           : (returnData.localWebsites = items.websites);
 
         returnData.localUserCollection = items.user_collection;
+        // because of strange firefox bug where user_collection wasn't getting set properly
+        if (isEmpty(items.user_collection) && !isEmpty(items.lastSyncsUserCollection))
+          returnData.localUserCollection = items.lastSyncsUserCollection;
         returnData.lastSyncsUserCollection = items.lastSyncsUserCollection;
         returnData.lastSyncsWebsites = items.lastSyncsWebsites;
         returnData.uploadFailedCards = items.uploadFailedCards;
@@ -269,7 +274,6 @@ async function uploadFailedItems(
   }
 }
 async function getMetaData(jwt, serverUrl) {
-  // when I move to an exported function, I can set syncing as a global variable on the window  window.syncing = true
   const getMetaDataCall = {
     url: serverUrl + '/get_decks_meta_and_collection',
     jwt: jwt,
@@ -284,7 +288,6 @@ async function getMetaData(jwt, serverUrl) {
     throw new Error('error in get_decks_meta_and_collection');
   }
   chrome.storage.local.set({ decks_meta: metaDataCallResults.decks_meta });
-
   return metaDataCallResults.user_collection;
 }
 async function syncHighlightUrls(

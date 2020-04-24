@@ -97,12 +97,12 @@ export default {
   mounted() {
     chrome.runtime.onMessage.addListener(msg => {
       if (msg.syncing) {
-        console.log('msg', msg);
+        // console.log('msg', msg);
         if (msg.value) this.syncing = true;
         if (!msg.value) this.syncing = false;
       }
       if (msg.syncNotUpToDate) {
-        console.log('msg', msg);
+        // console.log('msg', msg);
         if (msg.value) this.syncNotUpToDate = true;
         if (!msg.value) this.syncNotUpToDate = false;
       }

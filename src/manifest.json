@@ -18,7 +18,7 @@
   },
   "content_scripts": [{
     "matches": ["http://*/*", "https://*/*"],
-    "exclude_globs": ["*ipfc.tech*", "*localhost*"],
+    "exclude_globs": ["*ipfc.tech*", "*localhost*", "*chrome-extension*", "*moz-extension*", "*about:*"],
     "js": [
       "highlighter/highlighter.js",
       "utils/sidebarContentScript.js"
@@ -32,9 +32,17 @@
   },
   "permissions": [
     "activeTab",
+    "tabs",
     "unlimitedStorage",
     "contextMenus",
     "storage",
     "<all_urls>"
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "extension@ipfc.tech",
+      "strict_min_version": "42.0"
+    }
+  }
+
 }

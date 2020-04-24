@@ -6,14 +6,16 @@ chrome.runtime.onMessage.addListener(msg => {
 
 function resize() {
   chrome.storage.local.get(['lastActiveTabUrl'], items => {
-    // console.log('resize called');
     if (window.location.href === items.lastActiveTabUrl) {
+      console.log('resize called');
+      console.log('window.location.href', window.location.href);
       const updateData = {
-        mainWinLeft: window.screenLeft,
+        mainWinLeft: window.screenX,
         mainWinWidth: window.outerWidth,
       };
       updateData.height = window.outerHeight;
-      updateData.top = window.screenTop;
+      updateData.top = window.screenY;
+      console.log('update data', updateData);
       chrome.runtime.sendMessage({
         sidebarResize: true,
         updateData: updateData,
@@ -40,8 +42,9 @@ setInterval(function() {
 //   resize();
 // });
 
-const createSidebar = function() {
+const createSidebar = function(callback) {
   chrome.windows.getCurrent(function(win) {
+    console.log('createSidebar,   win', win);
     const sidebar = {
       type: 'popup',
       url: 'sidebar/sidebar.html',
@@ -66,8 +69,12 @@ const createSidebar = function() {
     } else {
       sidebar.left = win.left + updatedWinWidth;
     }
+    // chrome.runtime.sendMessage({ openSidebar: true, sidebar: sidebar });
+    console.log('sidebar create specs', sidebar);
+    console.log('win.id, updatedWinWidth, updatedWinLeft', win.id, updatedWinWidth, updatedWinLeft);
     chrome.windows.update(win.id, { width: updatedWinWidth, left: updatedWinLeft });
     chrome.windows.create(sidebar);
+    if (callback) callback();
   });
 };
 

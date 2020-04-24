@@ -76,7 +76,8 @@
 // import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { ToggleButton } from 'vue-js-toggle-button';
-
+// import { sendMesageToAllTabs } from '../background';
+import { combineMineAndOthersWebsites } from '../utils/dataProcessing';
 import TheNavbar from '../components/TheNavbar.vue';
 import FlashcardViewer from '../components/FlashcardViewer.vue';
 const axios = require('axios');
@@ -126,6 +127,9 @@ export default {
     },
   },
   created() {
+    // firefox can't set popup left and top, so need to call this immediately
+    // sendMesageToAllTabs({ resizeSidebar: true });
+    chrome.runtime.sendMessage({ resizeSidebar: true });
     const that = this;
     chrome.windows.getCurrent(function(win) {
       chrome.runtime.sendMessage({ sidebarWinId: win.id });
@@ -133,8 +137,8 @@ export default {
     });
     chrome.runtime.onMessage.addListener(function(msg, sender) {
       // resize function
-      console.log('sidebarResize recieved:  msg, sender', msg, sender);
       if (msg.sidebarResize) {
+        console.log('sidebarResize recieved:  msg, sender', msg, sender);
         const updateData = msg.updateData;
         that.resizeSidebarWindow(that.sidebarWinId, updateData);
       }
@@ -235,6 +239,7 @@ export default {
     loadPageMine() {
       // console.log('loadPageMine called');
       const setDecks = function(website, url, that) {
+        console.log('setting pageMine', website);
         that.decks = [{ title: url, cards: website.orderedCards }];
         if (website.orderlessCards.length > 0)
           that.decks.push({ title: 'Cards without a highlight', cards: website.orderlessCards });
@@ -291,9 +296,9 @@ export default {
         .catch(function(err) {
           console.log(err);
           that.connectionMsg = 'Unable to reach database';
-          console.log(that.connectionMsg);
-          throw new Error(err);
-          // sendMesageToAllTabs({ syncing: true, value: false });
+          this.loadingOthers = false;
+          this.loaded = true;
+          return null;
         });
       return result;
     },
@@ -301,19 +306,12 @@ export default {
       function getStorage() {
         return new Promise((resolve, reject) => {
           chrome.storage.local.get(
-            [
-              'websites',
-              'othersWebsites',
-              'mineAndOthersWebsites',
-              'lastActiveTabUrl',
-              'highlightsViewMode',
-            ],
+            ['websites', 'mineAndOthersWebsites', 'lastActiveTabUrl', 'highlightsViewMode'],
             function(items) {
               console.log('    items', items);
               const returnData = {};
               // let localDecksMeta;  // will need for adding cards to certain decks
               returnData.websites = items.websites;
-              returnData.othersWebsites = items.othersWebsites;
               returnData.mineAndOthersWebsites = items.mineAndOthersWebsites;
               returnData.lastActiveTabUrl = items.lastActiveTabUrl;
               returnData.highlightsViewMode = items.highlightsViewMode;
@@ -332,13 +330,13 @@ export default {
       const storage = await getStorage();
       // console.log('storage', storage);
       if (storage.highlightsViewMode !== 'mineAndOthers') {
+        chrome.storage.local.set({ highlightsViewMode: 'mineAndOthers' });
         chrome.runtime.sendMessage({
           refreshHighlights: true,
           refreshOrder: true,
           url: storage.lastActiveTabUrl,
         });
         console.log('set storage view mode');
-        chrome.storage.local.set({ highlightsViewMode: 'mineAndOthers' });
         return null;
       }
 
@@ -348,7 +346,9 @@ export default {
 
       // if mineAndOthersWebsites exists, load that, set small spinner
       // otherwise load local and set small spinner
-      const mineAndOthersWebsites = storage.mineAndOthersWebsites;
+      let mineAndOthersWebsites = storage.mineAndOthersWebsites;
+      if (isEmpty(mineAndOthersWebsites)) mineAndOthersWebsites = {};
+
       if (!isEmpty(mineAndOthersWebsites[url])) {
         this.decks = [{ title: url, cards: mineAndOthersWebsites[url].orderedCards }];
         if (!isEmpty(mineAndOthersWebsites[url].orderlessCards))
@@ -358,7 +358,6 @@ export default {
           });
         this.loaded = true;
       } else if (!isEmpty(websites[url])) {
-        if (websites[url]) console.log('websites[url], url', websites[url], url);
         if (websites[url].orderedCards) {
           this.decks = [{ title: url, cards: websites[url].orderedCards }];
           if (websites[url].orderlessCards.length > 0)
@@ -376,44 +375,91 @@ export default {
         method: 'POST',
         data: { url: url },
       };
-      let othersWebsites = storage.othersWebsites;
-      if (!othersWebsites) othersWebsites = {};
-      if (!websites[url]) websites[url] = {};
+      // these trials check if the version we got from the website includes our local cards, if not we need to cloud sync and add them
       const apiGetWebsite = await this.callAPI(getPageData);
-      console.log('apiGetWebsite', apiGetWebsite);
-      if (isEmpty(apiGetWebsite.website)) {
+      // console.log('apiGetWebsite', apiGetWebsite);
+      if (!apiGetWebsite) {
+        if (!isEmpty(websites[url])) {
+          if (!isEmpty(websites[url].highlights) || !isEmpty(websites[url].cards))
+            chrome.runtime.sendMessage({ cloudSync: true });
+        }
+        this.loadingOthers = false;
+        this.loaded = true;
+        return null;
+      }
+      const apiWebsite = apiGetWebsite.website;
+      if (isEmpty(apiWebsite)) {
+        if (!isEmpty(websites[url])) {
+          if (!isEmpty(websites[url].highlights) || !isEmpty(websites[url].cards))
+            chrome.runtime.sendMessage({ cloudSync: true });
+        }
         this.loadingOthers = false;
         this.loaded = true;
         console.log('found empty');
         return null;
       }
-      othersWebsites[url] = apiGetWebsite.website;
-      chrome.storage.local.set({ othersWebsites: othersWebsites });
-      // if mineAndOthersWebsites[url].cards.length is the same as others + websites, then we are done
-      // otherwise we need to refresh the page and try again
-      if (!isEmpty(mineAndOthersWebsites))
-        if (!isEmpty(mineAndOthersWebsites[url])) {
-          if (!isEmpty(mineAndOthersWebsites[url].cards)) {
-            const combinedCardIds = [];
-            if (!isEmpty(websites[url].cards))
-              for (const card of websites[url].cards) combinedCardIds.push(card.card_id);
-            if (!isEmpty(othersWebsites[url].cards))
-              for (const card of othersWebsites[url].cards)
-                if (!combinedCardIds.includes(card.card_id)) combinedCardIds.push(card.card_id);
-            if (mineAndOthersWebsites[url].cards.length === combinedCardIds.length) {
-              this.loadingOthers = false;
-              return null;
+      if (!isEmpty(websites[url])) {
+        if (!isEmpty(websites[url].highlights))
+          if (apiWebsite.highlights) {
+            for (const highlight in websites[url].highlights) {
+              if (!Object.keys(apiWebsite.highlights).includes(highlight)) {
+                chrome.runtime.sendMessage({ cloudSync: true });
+                break;
+              }
             }
-          } else {
-            this.loadingOthers = false;
-            return null;
           }
-        } else {
-          this.loadingOthers = false;
-          return null;
+        if (!isEmpty(apiWebsite.cards))
+          if (!isEmpty(websites[url].cards)) {
+            console.log(websites[url].cards, apiWebsite.cards);
+            for (const card in websites[url].cards) {
+              let count = 0;
+              for (const aCard in apiWebsite.cards) {
+                if (aCard.card_id === card.card_id) {
+                  count++;
+                  break;
+                }
+              }
+              if (count === 0) {
+                chrome.runtime.sendMessage({ cloudSync: true });
+                break;
+              }
+            }
+          }
+      }
+
+      // if the number of highlights and number of cards is the same in MineAndothers and in apigetwebsites. and MineAndOthers has been sorted (has ordered) then we are good
+      // otherwise we need to refresh the page and try again
+      let apiHighlightCount = 0;
+      let apiCardCount = 0;
+      let localHighlightCount = 0;
+      let localCardCount = 0;
+      if (apiWebsite.cards) apiCardCount = apiWebsite.cards.length;
+      if (apiWebsite.highlights) apiHighlightCount = Object.keys(apiWebsite.highlights).length;
+      if (mineAndOthersWebsites[url]) {
+        if (mineAndOthersWebsites[url].orderedCards && mineAndOthersWebsites[url].orderlessCards)
+          localCardCount =
+            mineAndOthersWebsites[url].orderedCards.length +
+            mineAndOthersWebsites[url].orderlessCards.length;
+        if (mineAndOthersWebsites[url].highlights)
+          localHighlightCount = Object.keys(mineAndOthersWebsites[url].highlights).length;
+      }
+      if (apiHighlightCount !== localHighlightCount || apiCardCount !== localCardCount) {
+        mineAndOthersWebsites[url] = apiWebsite;
+        const combinedWebsites = combineMineAndOthersWebsites(websites, mineAndOthersWebsites);
+        chrome.storage.local.set({ mineAndOthersWebsites: combinedWebsites });
+        chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+      } else {
+        if (mineAndOthersWebsites[url].orderedCards) {
+          this.decks = [{ title: url, cards: mineAndOthersWebsites[url].orderedCards }];
+          if (mineAndOthersWebsites[url].orderlessCards.length > 0)
+            this.decks.push({
+              title: 'Cards without a highlight',
+              cards: mineAndOthersWebsites[url].orderlessCards,
+            });
+          this.loaded = true;
         }
-      chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
-      return null;
+        this.loadingOthers = false;
+      }
     },
     generateRandomHslaColor() {
       // round to an interval of 20, 0-360
