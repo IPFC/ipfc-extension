@@ -1,12 +1,14 @@
 # Inter Planetary Flash Cards - Extension
 
-open source project hosted on [github](https://github.com/IPFC/ipfc-extension)
+Extension available on the [Chrome store](https://chrome.google.com/webstore/detail/inter-planetary-flash-car/ffjpplmcceibehbaofplbmcldkmmhcob/related?hl=en-US) and the [Firefox store](https://addons.mozilla.org/en-US/firefox/addon/inter-planetary-flash-cards)
+
+Open source project hosted on [github](https://github.com/IPFC/ipfc-extension)
 
 Quickly make flashcards and highlights from websites and sync them to multiplatform flashcard apps for review
 
 Current build tested in Linux with Node v12.13.1
 
-built with boilerplate: [vue-web-extension](https://github.com/Kocal/vue-web-extension)
+Built with boilerplate: [vue-web-extension](https://github.com/Kocal/vue-web-extension)
 
 to install:
 `npm install`
