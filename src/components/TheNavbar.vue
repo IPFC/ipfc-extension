@@ -11,7 +11,12 @@
             @click="toggleMenu()"
           />
           <!-- <img src="/icons/search.svg" alt="search" class="nav-itm m-2" /> -->
-          <img src="/icons/add-card-icon.svg" alt="add card" class="nav-itm m-2" />
+          <img
+            src="/icons/add-card-icon.svg"
+            alt="add card"
+            class="nav-itm m-2"
+            @click="addNewBlankCard()"
+          />
           <b-link id="sync-link" aria-label="sync status" @click="callSync()">
             <font-awesome-layers id="sync-layers" class="fa-lg">
               <font-awesome-icon id="cloud" style="color: white;" class="fa-lg" icon="cloud" />
@@ -122,6 +127,9 @@ export default {
     openWebapp() {
       chrome.tabs.create({ url: 'https://ipfc.tech' });
     },
+    addNewBlankCard() {
+      chrome.runtime.sendMessage({ newBlankCard: true });
+    },
   },
 };
 </script>
@@ -129,9 +137,6 @@ export default {
 #the-navbar {
   width: 100%;
   background-color: #323234;
-}
-.nav-itm {
-  /* height: 50%; */
 }
 .nav-itm:hover {
   cursor: pointer;

@@ -13,6 +13,13 @@
           {{ card.front_text }}
         </p>
         <font-awesome-icon
+          v-if="collectCard"
+          icon="plus-square"
+          :class="showCardBacks ? 'collect-btn-show-backs' : 'collect-btn'"
+          @click="$emit('collect-card-clicked')"
+        />
+        <font-awesome-icon
+          v-else
           icon="edit"
           :class="showCardBacks ? 'edit-btn-show-backs' : 'edit-btn'"
           @click="$emit('edit-clicked')"
@@ -50,6 +57,7 @@ export default {
     },
     clickedCardId: { type: String, default: '' },
     showCardBacks: { type: Boolean, default: false },
+    collectCard: { type: Boolean, default: false },
   },
   data() {
     return {
@@ -145,12 +153,35 @@ export default {
 }
 .edit-btn {
   position: fixed;
-  top: 3px;
+  top: 5px;
   right: 3px;
   color: grey;
 }
 .edit-btn:hover {
   color: rgb(36, 36, 36);
+  cursor: pointer;
+}
+.collect-btn-show-backs {
+  margin-left: auto;
+  margin-right: 5px;
+  height: 18px;
+  width: 18px;
+  color: #f8690d;
+}
+.collect-btn-show-backs:hover {
+  color: #9a3c02;
+  cursor: pointer;
+}
+.collect-btn {
+  position: fixed;
+  top: 5px;
+  right: 5px;
+  height: 18px;
+  width: 18px;
+  color: #f8690d;
+}
+.collect-btn:hover {
+  color: #9a3c02;
   cursor: pointer;
 }
 .flip-container {

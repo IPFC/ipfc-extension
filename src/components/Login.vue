@@ -33,7 +33,7 @@
           passwordValidationErrorMsg
         }}</b-form-invalid-feedback>
         <!-- <b-form-valid-feedback :state="passwordValidation">Looks Good.</b-form-valid-feedback> -->
-
+        <!-- 
         <b-button
           v-if="showSignUp"
           id="button-get-pinata"
@@ -53,10 +53,10 @@
         ></b-form-input>
         <b-form-invalid-feedback v-if="showSignUp" :state="pinataApiValidation">{{
           pinataApiValidationErrorMsg
-        }}</b-form-invalid-feedback>
+        }}</b-form-invalid-feedback> -->
         <!-- <b-form-valid-feedback v-if="showSignUp" :state="pinataApiValidation">Looks Good.</b-form-valid-feedback> -->
 
-        <label v-if="showSignUp" for="feedback-pinata-secret">Pinata secret API key</label>
+        <!-- <label v-if="showSignUp" for="feedback-pinata-secret">Pinata secret API key</label>
         <b-form-input
           v-if="showSignUp"
           id="feedback-pinata-secret"
@@ -67,15 +67,16 @@
         <b-form-invalid-feedback v-if="showSignUp" :state="pinataSecretValidation">{{
           pinataSecretValidationErrorMsg
         }}</b-form-invalid-feedback>
-        <!-- <b-form-valid-feedback v-if="showSignUp" :state="pinataSecretValidation">Looks Good.</b-form-valid-feedback> -->
-
+        <b-form-valid-feedback v-if="showSignUp" :state="pinataSecretValidation"
+          >Looks Good.</b-form-valid-feedback
+        > -->
         <span id="login-signup-buttons">
           <b-button
             v-if="showSignUp"
             :disabled="loginButtonDisable"
             type="submit"
             variant="primary"
-            @click="SignUp()"
+            @click="signup()"
           >
             <font-awesome-icon v-show="loggingIn" icon="spinner" spin />
             Sign up</b-button
@@ -172,38 +173,38 @@ export default {
         return null;
       }
     },
-    pinataApiValidation() {
-      const pinataApi = this.input.pinataApi;
-      if (pinataApi.length < 20 || pinataApi.length > 20) {
-        return false;
-      } else {
-        return true;
-      }
-    },
-    pinataApiValidationErrorMsg() {
-      const pinataApi = this.input.pinataApi;
-      if (pinataApi.length < 20 || pinataApi.length > 20) {
-        return "Invalid pinata api key. In pinata, click the profile icon, then 'account'";
-      } else {
-        return null;
-      }
-    },
-    pinataSecretValidation() {
-      const pinataSecret = this.input.pinataSecret;
-      if (pinataSecret.length < 64 || pinataSecret.password > 64) {
-        return false;
-      } else {
-        return true;
-      }
-    },
-    pinataSecretValidationErrorMsg() {
-      const pinataSecret = this.input.pinataSecret;
-      if (pinataSecret.length < 64 || pinataSecret.length > 64) {
-        return "Invalid pinata api secret key. In pinata, click the profile icon, then 'account'";
-      } else {
-        return null;
-      }
-    },
+    // pinataApiValidation() {
+    //   const pinataApi = this.input.pinataApi;
+    //   if (pinataApi.length < 20 || pinataApi.length > 20) {
+    //     return false;
+    //   } else {
+    //     return true;
+    //   }
+    // },
+    // pinataApiValidationErrorMsg() {
+    //   const pinataApi = this.input.pinataApi;
+    //   if (pinataApi.length < 20 || pinataApi.length > 20) {
+    //     return "Invalid pinata api key. In pinata, click the profile icon, then 'account'";
+    //   } else {
+    //     return null;
+    //   }
+    // },
+    // pinataSecretValidation() {
+    //   const pinataSecret = this.input.pinataSecret;
+    //   if (pinataSecret.length < 64 || pinataSecret.password > 64) {
+    //     return false;
+    //   } else {
+    //     return true;
+    //   }
+    // },
+    // pinataSecretValidationErrorMsg() {
+    //   const pinataSecret = this.input.pinataSecret;
+    //   if (pinataSecret.length < 64 || pinataSecret.length > 64) {
+    //     return "Invalid pinata api secret key. In pinata, click the profile icon, then 'account'";
+    //   } else {
+    //     return null;
+    //   }
+    // },
     invalidSignUp() {
       if (
         !this.emailValidation ||
@@ -268,7 +269,7 @@ export default {
       this.loggingIn = true;
       this.failedLogin = false;
       chrome.runtime.sendMessage({
-        login: true,
+        signup: true,
         username: this.input.email,
         password: this.input.password,
         pinata_api: this.input.pinataApi,

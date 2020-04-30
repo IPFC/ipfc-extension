@@ -74,5 +74,49 @@ const combineMineAndOthersWebsites = function(websites, othersWebsites) {
   // console.log('combined websites', combinedWebsites);
   return combinedWebsites;
 };
+const filterOutCardCopies = function(rawCards, userId) {
+  // console.log('cards, order', cards, order);
+  const copierCards = rawCards.filter(card => {
+    return card.is_copy_of;
+  });
+  const copierCardIds = [];
+  for (const copierCard of copierCards) copierCardIds.push(copierCard.card_id);
+  // console.log('copierCards', copierCards);
+  const cards = [];
+  const copiedCardIds = [];
+  const conflictedSets = {};
+  for (const copierCard of copierCards) {
+    let count = 0;
+    for (const rawCard of rawCards) {
+      if (!copierCardIds.includes(rawCard.card_id))
+        if (rawCard.card_id === copierCard.is_copy_of) {
+          copiedCardIds.push(rawCard.card_id);
+          if (isEmpty(conflictedSets[rawCard.card_id]))
+            conflictedSets[rawCard.card_id] = [copierCard, rawCard];
+          else conflictedSets[rawCard.card_id].push(copierCard);
+          count++;
+          break;
+        }
+    }
+    if (count === 0) cards.push(copierCard); // the card it copied isn't present
+  }
+  for (const card of rawCards) {
+    if (!copiedCardIds.includes(card.card_id) && !copierCardIds.includes(card.card_id))
+      cards.push(card); // not a conflicted card
+  }
+  for (const conflictedSet in conflictedSets) {
+    let count = 0;
+    for (const card of conflictedSets[conflictedSet]) {
+      if (card.user_id === userId) {
+        cards.push(card); // prioritize my cards
+        count++;
+        break;
+      }
+    }
+    if (count === 0) cards.push(conflictedSets[conflictedSet][0]); // if neither are mine, just pick the first
+  }
 
-export { combineMineAndOthersWebsites };
+  // console.log('joined cards', cards);
+  return cards;
+};
+export { combineMineAndOthersWebsites, filterOutCardCopies };

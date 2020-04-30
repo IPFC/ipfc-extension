@@ -3,6 +3,7 @@
 import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { cloudSync, syncStatus } from './utils/cloudSync';
+import { sendMesageToAllTabs } from './utils/messaging';
 import { login, signup } from './utils/loginLogout';
 import { createSidebar } from './utils/sidebarContentScript';
 const uuidv4 = require('uuid/v4');
@@ -21,7 +22,7 @@ chrome.runtime.onInstalled.addListener(function() {
   });
 });
 
-chrome.runtime.onMessage.addListener(function(msg, sender) {
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.login) {
     login(msg.username, msg.password);
   }
@@ -38,30 +39,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender) {
     chrome.storage.local.set({ sidebarWinId: msg.sidebarWinId });
   }
   if (msg.highlightSelection) {
-    console.log('msg.highlightSelection, open newcard editor');
+    // console.log('msg.highlightSelection, open newcard editor');
     chrome.storage.local.set({ newCardData: msg.newCardData, toEditCardData: null });
-    const editorWindow = {
-      type: 'popup',
-      url: 'cardEditor/cardEditor.html',
-      width: 400,
-      height: 600,
-      left: 0,
-      top: 0,
-    };
-    chrome.windows.create(editorWindow);
+    openEditor();
   }
   if (msg.openEditor) {
-    console.log('msg.openEditor');
+    // console.log('msg.openEditor');
     chrome.storage.local.set({ toEditCardData: msg.toEditCardData, newCardData: null });
-    const editorWindow = {
-      type: 'popup',
-      url: 'cardEditor/cardEditor.html',
-      width: 400,
-      height: 611,
-      left: 0,
-      top: 0,
-    };
-    chrome.windows.create(editorWindow);
+    openEditor();
   }
   if (msg.createSidebar) {
     createSidebar();
@@ -69,23 +54,25 @@ chrome.runtime.onMessage.addListener(function(msg, sender) {
   if (msg.newBlankCard) {
     chrome.storage.local.get(['lastActiveTabUrl', 'user_collection'], items => {
       const newCardData = {
-        isNew: true,
         time: new Date().getTime(),
         card_id: uuidv4(),
         user_id: items.user_collection.user_id,
         highlight_url: items.lastActiveTabUrl,
       };
       chrome.storage.local.set({ newCardData: newCardData, toEditCardData: null });
-      const editorWindow = {
-        type: 'popup',
-        url: 'cardEditor/cardEditor.html',
-        width: 400,
-        height: 611,
-        left: 0,
-        top: 0,
-      };
-      chrome.windows.create(editorWindow);
+      openEditor();
     });
+  }
+  if (msg.addNewCardToHighlight) {
+    const newCardData = {
+      time: new Date().getTime(),
+      card_id: uuidv4(),
+      user_id: msg.userId,
+      highlight_url: msg.url,
+      highlight_id: msg.highlightId,
+    };
+    chrome.storage.local.set({ newCardData: newCardData, toEditCardData: null });
+    openEditor();
   }
   if (msg.resizeComplete) {
     // refocus on last active
@@ -93,8 +80,40 @@ chrome.runtime.onMessage.addListener(function(msg, sender) {
       chrome.windows.update(items.lastActiveWindow, { focused: msg.refocus });
     });
   }
-  if (msg.storeCard) {
+  if (msg.storeCardFromEditor) {
     sendMesageToAllTabs({ storeCard: true, card: msg.card });
+  }
+  if (msg.highlightClicked) {
+    // console.log('highlight clicked msg', msg);
+    chrome.storage.local.get(['websites', 'mineAndOthersWebsites', 'user_collection'], items => {
+      let highlight;
+      try {
+        highlight = items.mineAndOthersWebsites[msg.highlightUrl].highlights[msg.highlightId];
+      } catch {
+        try {
+          highlight = items.websites[msg.highlightUrl].highlights[msg.highlightId];
+        } catch {
+          console.log('highlight not found');
+          return null;
+        }
+      }
+      // console.log('sending response, highlight', highlight);
+      sendResponse({ highlight: highlight, userId: items.user_collection.user_id });
+      const associatedCards = items.mineAndOthersWebsites[msg.highlightUrl].cards;
+      for (const card of associatedCards) {
+        if (card.highlight_id === msg.highlightId) {
+          // will this message reach sidebar in both chrome and firefox?
+          chrome.runtime.sendMessage({ sidebarScrollToCard: true, cardId: card.card_id });
+        }
+      }
+      // if couldn't find the card ID, might be because the highlight we clicked doesn't have a card, but a clone of that highlight does
+      // therefore we should check for clones of the highlight and see if those have associated cards
+      // ...
+      // chrome.runtime.sendMessage({ sidebarScrollToCard: true, cardId: card.card_id });
+    });
+  }
+  if (msg.collectCardAndHighlight) {
+    sendMesageToAllTabs({ collectCardAndHighlight: true, card: msg.card, userId: msg.userId });
   }
   if (msg.focusMainWinHighlight) {
     sendMesageToAllTabs({ focusMainWinHighlight: true, highlightId: msg.highlightId });
@@ -102,23 +121,50 @@ chrome.runtime.onMessage.addListener(function(msg, sender) {
   if (msg.deleteCard) {
     sendMesageToAllTabs({ deleteCard: true, url: msg.url, card: msg.card });
   }
-  if (msg.highlightDeleted) {
-    chrome.storage.local.get(['sidebarWinId'], function(items) {
-      // console.log(items.sidebarWinId);
-      chrome.tabs.sendMessage(items.sidebarWinId, {
-        highlightDeleted: true,
-      });
-    });
-  }
+  // if (msg.highlightDeleted) {
+  //   chrome.storage.local.get(['sidebarWinId'], function(items) {
+  //     // console.log(items.sidebarWinId);
+  //     chrome.tabs.sendMessage(items.sidebarWinId, {
+  //       highlightDeleted: true,
+  //     });
+  //   });
+  // }
   if (msg.refreshHighlights) {
-    console.log('    refresh highlights message recieved');
+    // console.log('    refresh highlights message recieved');
     if (msg.refreshOrder) SendOutRefresh(null, true);
     else SendOutRefresh(null, null);
   }
-  // if (msg.orderRefreshed) {
-  //   chrome.runtime.sendMessage({ orderRefreshed: true });
-  // }
+  if (msg.orderRefreshed) {
+    chrome.runtime.sendMessage({ orderRefreshed: true });
+  }
   if (msg.updateActiveTab) updateActiveTab();
+  if (msg.postCard) {
+    sendMesageToAllTabs({
+      postCard: true,
+      jwt: msg.jwt,
+      serverUrl: msg.serverUrl,
+      card: msg.card,
+      deckId: msg.deckId,
+    });
+  }
+  if (msg.putCard) {
+    sendMesageToAllTabs({
+      putCard: true,
+      jwt: msg.jwt,
+      serverUrl: msg.serverUrl,
+      card: msg.card,
+      deckId: msg.deckId,
+    });
+  }
+  if (msg.postDeck) {
+    sendMesageToAllTabs({
+      postDeck: true,
+      jwt: msg.jwt,
+      serverUrl: msg.serverUrl,
+      card: msg.card,
+      deck: msg.deck,
+    });
+  }
 });
 
 // CHANGE LISTENER. listener might overload the browser runtime.lastError: QUOTA_BYTES_PER_ITEM quota exceeded
@@ -139,7 +185,7 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 
 const debouncedCloudSync = debounce(async () => {
   console.log('    debounced cloud sync called, syncStatus', syncStatus);
-  console.log(new Date().getTime());
+  // console.log(new Date().getTime());
   cloudSync();
 }, 5000);
 function checkJwt() {
@@ -182,33 +228,33 @@ function checkWebsitesChanged(oldWebsites, newWebsites) {
         if (url === nUrl) {
           if (newWebsite.cards && oldWebsite.cards) {
             if (!isEqual(newWebsite.cards, oldWebsite.cards)) {
-              console.log(
-                'unequal cards: oldWebsite, newWebsite',
-                oldWebsite.cards,
-                newWebsite.cards
-              );
+              // console.log(
+              //   'unequal cards: oldWebsite, newWebsite',
+              //   oldWebsite.cards,
+              //   newWebsite.cards
+              // );
               checkJwtAndSync();
               return null;
             }
           }
           if (newWebsite.highlights && oldWebsite.highlights)
             if (!isEqual(newWebsite.highlights, oldWebsite.highlights)) {
-              console.log(
-                'unequal highlights: oldWebsite, newWebsite',
-                oldWebsite.highlights,
-                newWebsite.highlights
-              );
+              // console.log(
+              //   'unequal highlights: oldWebsite, newWebsite',
+              //   oldWebsite.highlights,
+              //   newWebsite.highlights
+              // );
               sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
               checkJwtAndSync();
               return null;
             }
           if (newWebsite.deleted && oldWebsite.deleted)
             if (!isEqual(newWebsite.deleted, oldWebsite.deleted)) {
-              console.log(
-                'unequal deleted: oldWebsite, newWebsite',
-                oldWebsite.deleted,
-                newWebsite.deleted
-              );
+              // console.log(
+              //   'unequal deleted: oldWebsite, newWebsite',
+              //   oldWebsite.deleted,
+              //   newWebsite.deleted
+              // );
               sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
               checkJwtAndSync();
               return null;
@@ -222,7 +268,7 @@ function checkWebsitesChanged(oldWebsites, newWebsites) {
   }
 }
 function checkUserCollectionChanged(oldCollection, newCollection) {
-  console.log(oldCollection, newCollection);
+  // console.log(oldCollection, newCollection);
   if (oldCollection && newCollection) {
     if (oldCollection.highlight_urls && newCollection.highlight_urls)
       if (!isEqual(oldCollection.highlight_urls.list, newCollection.highlight_urls.list)) {
@@ -241,29 +287,7 @@ function checkUserCollectionChanged(oldCollection, newCollection) {
     checkJwtAndSync();
   }
 }
-const sendMesageToAllTabs = function(message) {
-  chrome.tabs.query({}, function(tabs) {
-    for (let i = 0; i < tabs.length; ++i) {
-      chrome.tabs.get(tabs[i].id, function(tab) {
-        if (
-          !tab.url.startsWith('chrome') &&
-          !tab.url.startsWith('about') &&
-          !tab.url.startsWith('https://addons') &&
-          !tab.url.startsWith('moz-extension')
-        ) {
-          // console.log(tab.url);
 
-          chrome.tabs.sendMessage(tabs[i].id, message, function() {
-            if (chrome.runtime.lastError) {
-              // console.log(chrome.runtime.lastError.message);
-              // console.log(tab.url);
-            }
-          });
-        }
-      });
-    }
-  });
-};
 // sending message to sidebar and popup, just use chrome.runtime.sendmessage
 function SendOutRefresh(url = null, refreshOrder = null, callback) {
   chrome.storage.local.get(['lastActiveTabUrl'], function(items) {
@@ -296,7 +320,7 @@ function checkIfHighlightsExist(url, callback) {
           if (!userCollection.highlight_urls.list.includes(url)) {
             userCollection.highlight_urls.list.push(url);
             userCollection.highlight_urls.edited = new Date().getTime();
-            console.log('    user collection after adding highlight urls', userCollection);
+            // console.log('    user collection after adding highlight urls', userCollection);
             chrome.storage.local.set({ user_collection: userCollection });
           }
         }
@@ -318,7 +342,7 @@ function updateActiveTab(refresh) {
     const lastActiveTabUrl = tabs[0].url;
     let lastActiveWindow;
     chrome.windows.getLastFocused(function(win) {
-      console.log('    win', win);
+      // console.log('    win', win);
       lastActiveWindow = win.id;
     });
     chrome.storage.local.get(['lastActiveTabId', 'lastActiveTabUrl', 'sidebarWinId'], function(
@@ -350,7 +374,7 @@ function updateActiveTab(refresh) {
           lastActiveTabUrl: lastActiveTabUrl,
           lastActiveWindow: lastActiveWindow,
         });
-        console.log('last active tab set', lastActiveTabUrl);
+        // console.log('last active tab set', lastActiveTabUrl);
         chrome.runtime.sendMessage({ activeTabChanged: true });
       }
       // this is needed for single page applications which don't reload on url change
@@ -412,23 +436,49 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   }
 });
 
+function openEditor() {
+  const editorWindow = {
+    type: 'popup',
+    url: 'cardEditor/cardEditor.html',
+    width: 400,
+    height: 611,
+    left: 0,
+    top: 0,
+  };
+  chrome.windows.create(editorWindow);
+}
+
 //
 // CONTEXT MENU
 //
 chrome.contextMenus.create({
   id: 'makeFlashCard',
-  title: 'Make Flashcard',
+  title: 'Make flashcard and highlight',
   onclick: makeFlashcard,
   contexts: ['selection'],
 });
+// this slows down creation. not sure if people will want just highlight, not card create feature.
+// chrome.contextMenus.create({
+//   id: 'makeHighlight',
+//   title: 'Highlight',
+//   onclick: makeHighlight,
+//   contexts: ['selection'],
+// });
 
 function makeFlashcard() {
   // might need to check if user collection valid as well
   const jwtValid = checkJwt();
   if (jwtValid) {
-    sendMesageToAllTabs({ getHighlight: true });
+    sendMesageToAllTabs({ getHighlight: true, makeCard: true });
   } else alert('Please sign in');
 }
+// function makeHighlight() {
+//   // might need to check if user collection valid as well
+//   const jwtValid = checkJwt();
+//   if (jwtValid) {
+//     sendMesageToAllTabs({ getHighlight: true });
+//   } else alert('Please sign in');
+// }
 
 // Get the initial color value
 // chrome.storage.local.get('color', values => {

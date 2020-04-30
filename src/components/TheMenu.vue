@@ -146,7 +146,7 @@ export default {
           chrome.storage.local.get(
             ['websites', 'mineAndOthersWebsites', 'lastActiveTabUrl', 'highlightsViewMode'],
             function(items) {
-              console.log('    items', items);
+              // console.log('    items', items);
               const returnData = {};
               // let localDecksMeta;  // will need for adding cards to certain decks
               returnData.websites = items.websites;
@@ -168,7 +168,7 @@ export default {
         that.serverUrl = items.serverUrl;
       });
       const storage = await getStorage();
-      console.log('storage', storage);
+      // console.log('storage', storage);
       if (storage.highlightsViewMode !== 'mineAndOthers') {
         chrome.runtime.sendMessage({
           refreshHighlights: true,
@@ -193,7 +193,7 @@ export default {
       // then make API call
       if (!websites[url]) websites[url] = {};
       const apiGetWebsite = await this.callAPI(getPageData);
-      console.log('apiGetWebsite', apiGetWebsite);
+      // console.log('apiGetWebsite', apiGetWebsite);
       const apiWebsite = apiGetWebsite.website;
       if (isEmpty(apiWebsite)) {
         this.loadingOthers = false;

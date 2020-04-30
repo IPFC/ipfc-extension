@@ -1,9 +1,10 @@
-// import { isEmpty } from 'lodash';
 import {
   storeHighlightsOrder,
   storeHighlight,
   deleteHighlight,
   storeCard,
+  addNewCardToHighlight,
+  collectCardAndHighlight,
   deleteCard,
   postCard,
   putCard,
@@ -11,21 +12,22 @@ import {
   loadThisUrlsHighlights,
   // deleteAllPageHighlights,
   clearPageHighlights,
+  collectHighlight,
 } from './storageManager';
 const uuidv4 = require('uuid/v4');
 const $ = require('jquery');
 
-const commonAdScripts = [
-  'amazon-adsystem.com',
-  'eus.rubiconproject.com',
-  'openx.net/w',
-  'ads.pubmatic.com',
-  'acdn.adnxs.com',
-  'js-sec.indexww',
-  'cdn.connectad',
-  'sync-eu.connectad',
-  'casalemedia.com/usermatch',
-];
+// const commonAdScripts = [
+//   'amazon-adsystem.com',
+//   'eus.rubiconproject.com',
+//   'openx.net/w',
+//   'ads.pubmatic.com',
+//   'acdn.adnxs.com',
+//   'js-sec.indexww',
+//   'cdn.connectad',
+//   'sync-eu.connectad',
+//   'casalemedia.com/usermatch',
+// ];
 
 // A combination of characters that should (almost) never occur
 const DELIMITERS = {
@@ -41,7 +43,8 @@ $(document).ready(refreshHighlights(window.location.href, true));
 
 chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.getHighlight) {
-    getHighlight();
+    if (msg.makeCard) getHighlight(true);
+    else getHighlight();
   }
   if (msg.deleteHighlight) {
     deleteHighlight(msg.url, msg.id);
@@ -51,6 +54,9 @@ chrome.runtime.onMessage.addListener(function(msg) {
   }
   if (msg.storeCard) {
     storeCard(msg.card);
+  }
+  if (msg.collectCardAndHighlight) {
+    collectCardAndHighlight(msg.card, msg.userId);
   }
   if (msg.postCard) {
     console.log('posting card', msg);
@@ -63,7 +69,7 @@ chrome.runtime.onMessage.addListener(function(msg) {
     postDeck(msg.jwt, msg.serverUrl, msg.card, msg.deck);
   }
   if (msg.refreshHighlights) {
-    console.log('refresh highlights, msg.url', msg.url);
+    // console.log('refresh highlights, msg.url', msg.url);
     if (msg.refreshOrder) refreshHighlights(msg.url, true);
     else refreshHighlights(msg.url, false);
   }
@@ -83,11 +89,15 @@ chrome.runtime.onMessage.addListener(function(msg) {
 
 function setupContextMenu() {
   let clickedHighlightId;
+  let highlight;
+  let userId;
   var leftContextMenuHtml = `<ul id="left-context-ul">
-  <li class="left-context-li" id="delete-highlight">delete highlight</li>
-  <li class="left-context-li" id="collect-highlight">collect highlight</li>
-</ul>
-`;
+    <li class="left-context-li" id="delete-highlight">Delete highlight</li>
+    <li class="left-context-li" id="delete-highlight-and-card">Delete highlight and card</li>
+    <li class="left-context-li" id="add-card-to-highlight">Add a new card to this highlight</li>
+    <li class="left-context-li" id="collect-highlight">Collect highlight</li>
+    <li class="left-context-li" id="collect-highlight-and-card">Collect highlight and card</li>
+  </ul>`;
   if ($('#left-context-menu').length === 0) {
     const leftContextMenu = document.createElement('div');
     leftContextMenu.id = 'left-context-menu';
@@ -110,36 +120,77 @@ function setupContextMenu() {
     ) {
       const target = $(e.target);
       // console.log(target);
-      const id = target[0].id;
-      clickedHighlightId = id;
+      clickedHighlightId = target[0].id;
       const offsetTop = Math.round(target.offset().top);
       const offsetHeight = target[0].offsetHeight;
       const offsetLeft = target.offset().left;
       // console.log('offsetLeft, offsetHeight, offsetTop', offsetLeft, offsetHeight, offsetTop);
-      chrome.runtime.sendMessage({
-        highlightClicked: true,
-        highlightId: id,
-        highlightUrl: window.location.href,
-      });
-      $menu.css({
-        position: 'absolute',
-        top: offsetTop - offsetHeight - 55,
-        left: offsetLeft,
-      });
-      $menu.show();
-      togglePopupLeftContextMenu();
+      chrome.runtime.sendMessage(
+        {
+          highlightClicked: true,
+          highlightId: clickedHighlightId,
+          highlightUrl: window.location.href,
+        },
+        function(response) {
+          // console.log(response.highlight, 'response.highlight');
+          highlight = response.highlight;
+          userId = response.userId;
+          $menu.css({
+            position: 'absolute',
+            top: offsetTop - offsetHeight - 55,
+            left: offsetLeft,
+          });
+          $menu.show();
+          togglePopupLeftContextMenu();
+        }
+      );
     }
   };
 
   const togglePopupLeftContextMenu = function() {
+    // console.log('highlight, userId', highlight, userId);
     const $menu = $('#left-context-menu');
-    const callback = function(e) {
-      if ($(e.target).is('#delete-highlight')) {
-        // console.log('delete clicked');
-        deleteHighlight(window.location.href, clickedHighlightId);
+    const $deleteHighlight = $('#delete-highlight');
+    const $deleteHighlightAndCard = $('#delete-highlight-and-card');
+    // const $addCardToHighlight = $('add-card-to-highlight');
+    const $collectHighlight = $('#collect-highlight');
+    const $collectHighlightAndCard = $('#collect-highlight-and-card');
+    if (highlight.user_id === userId) {
+      $collectHighlight.hide();
+      $collectHighlightAndCard.hide();
+      $deleteHighlight.show();
+      $deleteHighlightAndCard.show();
+    } else {
+      $deleteHighlight.hide();
+      $deleteHighlightAndCard.hide();
+      $collectHighlight.show();
+      $collectHighlightAndCard.show();
+    }
+    const clickCallback = function(e) {
+      function afterMenuItemClick() {
         $menu.hide();
-        $(document).off('click', callback);
+        $(document).off('click', clickCallback);
         $(document).on('click', repositionAndShowLeftContextMenu);
+      }
+      if ($(e.target).is('#delete-highlight')) {
+        deleteHighlight(window.location.href, clickedHighlightId, false);
+        afterMenuItemClick();
+      }
+      if ($(e.target).is('#delete-highlight-and-card')) {
+        deleteHighlight(window.location.href, clickedHighlightId, true);
+        afterMenuItemClick();
+      }
+      if ($(e.target).is('#add-card-to-highlight')) {
+        addNewCardToHighlight(highlight, clickedHighlightId, window.location.href, userId);
+        afterMenuItemClick();
+      }
+      if ($(e.target).is('#collect-highlight')) {
+        collectHighlight(highlight, window.location.href, userId);
+        afterMenuItemClick();
+      }
+      if ($(e.target).is('#collect-highlight-and-card')) {
+        collectHighlight(highlight, window.location.href, userId, highlight.card_id);
+        afterMenuItemClick();
       } else if (
         !$(e.target)
           .parents()
@@ -147,13 +198,13 @@ function setupContextMenu() {
           .is('#left-context-menu')
       ) {
         $menu.hide();
-        $(document).off('click', callback);
+        $(document).off('click', clickCallback);
         $(document).on('click', repositionAndShowLeftContextMenu);
       }
     };
     if ($menu.is(':visible')) {
       $(document).off('click', repositionAndShowLeftContextMenu);
-      $(document).on('click', callback);
+      $(document).on('click', clickCallback);
     }
     return false;
   };
@@ -178,7 +229,7 @@ function focusHighlight(highlightId) {
   // console.log('scrollto highlight id', highlightId);
 }
 function refreshHighlights(url, refreshOrder) {
-  console.log('refreshHighlights , url', url);
+  // console.log('refreshHighlights , url', url);
   chrome.storage.local.get(
     ['websites', 'mineAndOthersWebsites', 'highlightsViewMode', 'lastActiveTabUrl'],
     items => {
@@ -195,7 +246,7 @@ function refreshHighlights(url, refreshOrder) {
       if (!website) website = {};
       let orderlessCardsCountBefore = 0;
       if (website.orderlessCards) orderlessCardsCountBefore = website.orderlessCards.length;
-      console.log('orderlessCardsCountBefore', orderlessCardsCountBefore);
+      // console.log('orderlessCardsCountBefore', orderlessCardsCountBefore);
 
       const refreshComplete = function(refreshOrder) {
         // if there are more orderless cards after the refresh, there was a glitch. This reloading can be a little jarring, make it optional?
@@ -211,7 +262,7 @@ function refreshHighlights(url, refreshOrder) {
             if (!website) website = {};
             let orderlessCardsCountAfter = 0;
             if (website.orderlessCards) orderlessCardsCountAfter = website.orderlessCards.length;
-            console.log('orderlessCardsCountAfter', orderlessCardsCountAfter);
+            // console.log('orderlessCardsCountAfter', orderlessCardsCountAfter);
             if (
               orderlessCardsCountAfter === 0 ||
               orderlessCardsCountAfter === orderlessCardsCountBefore
@@ -226,9 +277,9 @@ function refreshHighlights(url, refreshOrder) {
       };
       if (refreshOrder) {
         clearPageHighlights(() => {
-          console.log('refresh order, url', url);
+          // console.log('refresh order, url', url);
           loadThisUrlsHighlights(url, () => {
-            console.log('storeHighlightsOrder');
+            // console.log('storeHighlightsOrder');
             storeHighlightsOrder(url, () => {
               refreshComplete(true);
             });
@@ -245,7 +296,7 @@ function refreshHighlights(url, refreshOrder) {
   );
 }
 
-function getHighlight() {
+function getHighlight(makeCard = false) {
   // if (syncing) {
   //   alert('syncing, please wait');
   //   return null;
@@ -270,7 +321,7 @@ function getHighlight() {
       const userId = items.user_collection.user_id;
       const color = items.color;
       const highlightId = 'h-id-' + uuidv4(); // need letters in front for valid html id. Can't start with numbers
-      const cardId = uuidv4();
+      const cardId = makeCard ? uuidv4() : null;
       // these are things to be saved in the new card, so they need to be sent to the editor
 
       const newCardOpenEditor = function(
@@ -308,18 +359,22 @@ function getHighlight() {
         cardId,
         highlightId,
         () => {
-          newCardOpenEditor(
-            selectionString,
-            cardId,
-            userId,
-            window.location.href,
-            highlightId,
-            () => {
-              highlight(selectionString, container, selection, color, highlightId, () => {
-                storeHighlightsOrder(window.location.href);
-              });
-            }
-          );
+          if (makeCard) {
+            newCardOpenEditor(
+              selectionString,
+              cardId,
+              userId,
+              window.location.href,
+              highlightId,
+              () => {
+                highlight(selectionString, container, selection, color, highlightId, () => {
+                  storeHighlightsOrder(window.location.href);
+                });
+              }
+            );
+          } else {
+            highlight(selectionString, container, selection, color, highlightId);
+          }
         }
       );
     });

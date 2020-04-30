@@ -45,21 +45,22 @@
               <div class="underline"></div>
             </b-col>
           </b-row>
-
           <b-row class="cards-row m-0">
             <b-col class="cards-col p-0 d-flex flex-column align-items-center" cols="12">
-              <flashcard-viewer
+              <flashcard-preview
                 v-for="card in deck.cards"
                 :id="'card-id' + card.card_id"
                 :key="card.card_id"
                 :card="card"
                 :show-card-backs="showCardBacks"
+                :collect-card="userCollection.user_id !== card.user_id"
                 :clicked-card-id="clickedCardId"
                 class="flashcard-outer"
                 :class="card.card_id === clickedCardId ? 'card-focused' : 'card-unfocused'"
                 @card-clicked="cardClicked(card)"
                 @edit-clicked="editCard(card)"
-              ></flashcard-viewer>
+                @collect-card-clicked="collectCard(card)"
+              ></flashcard-preview>
             </b-col>
           </b-row>
         </b-col>
@@ -68,6 +69,10 @@
     <div v-else class="spinner-div w-100 d-flex align-items-center justify-content-center">
       <font-awesome-icon icon="spinner" spin size="3x" class="align-middle"></font-awesome-icon>
     </div>
+    <span v-if="cardPostedDeck" id="card-post-popup">
+      card added to deck:
+      <p id="card-posted-deck">{{ cardPostedDeck }}</p>
+    </span>
   </div>
 </template>
 
@@ -76,10 +81,10 @@
 // import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { ToggleButton } from 'vue-js-toggle-button';
-// import { sendMesageToAllTabs } from '../background';
-import { combineMineAndOthersWebsites } from '../utils/dataProcessing';
+import { sendMesageToAllTabs } from '../utils/messaging';
+import { combineMineAndOthersWebsites, filterOutCardCopies } from '../utils/dataProcessing';
 import TheNavbar from '../components/TheNavbar.vue';
-import FlashcardViewer from '../components/FlashcardViewer.vue';
+import FlashcardPreview from '../components/FlashcardPreview';
 const axios = require('axios');
 const VueScrollTo = require('vue-scrollto');
 const ScrollToOptions = {
@@ -98,7 +103,7 @@ const decksDefault = [
   },
 ];
 export default {
-  components: { TheNavbar, FlashcardViewer, ToggleButton },
+  components: { TheNavbar, FlashcardPreview, ToggleButton },
   data() {
     return {
       windowSetting: '',
@@ -115,6 +120,8 @@ export default {
       serverUrl: '',
       showCardBacks: false,
       connectionMsg: 'Getting highlights',
+      userCollection: { user_id: '' },
+      cardPostedDeck: null,
     };
   },
   computed: {},
@@ -128,37 +135,27 @@ export default {
   },
   created() {
     // firefox can't set popup left and top, so need to call this immediately
-    // sendMesageToAllTabs({ resizeSidebar: true });
-    chrome.runtime.sendMessage({ resizeSidebar: true });
+    sendMesageToAllTabs({ resizeSidebar: true });
     const that = this;
     chrome.windows.getCurrent(function(win) {
       chrome.runtime.sendMessage({ sidebarWinId: win.id });
       that.sidebarWinId = win.id;
     });
-    chrome.runtime.onMessage.addListener(function(msg, sender) {
+    chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       // resize function
       if (msg.sidebarResize) {
-        console.log('sidebarResize recieved:  msg, sender', msg, sender);
+        // console.log('sidebarResize recieved:  msg, sender', msg, sender);
         const updateData = msg.updateData;
         that.resizeSidebarWindow(that.sidebarWinId, updateData);
       }
       // scroll to function
-      if (msg.highlightClicked) {
-        // console.log('highlight clicked msg', msg);
-        let cardId;
-        chrome.storage.local.get(['websites'], function(items) {
-          const associatedCards = items.websites[msg.highlightUrl].cards;
-          for (const card of associatedCards) {
-            if (card.highlight_id === msg.highlightId) {
-              cardId = card.card_id;
-            }
-          }
-          VueScrollTo.scrollTo('#card-id' + cardId, 300, ScrollToOptions);
-          that.clickedCardId = cardId;
-        });
+      if (msg.sidebarScrollToCard) {
+        // console.log('scrollto recieved, msg', msg);
+        VueScrollTo.scrollTo('#card-id' + msg.cardId, 300, ScrollToOptions);
+        that.clickedCardId = msg.cardId;
       }
       if (msg.activeTabChanged) {
-        console.log('activeTabChanged');
+        // console.log('activeTabChanged');
         that.loadSidebar();
       }
       if (msg.orderRefreshed) {
@@ -166,7 +163,11 @@ export default {
         that.loadSidebar();
       }
       if (msg.syncing) {
-        this.syncing = msg.value;
+        that.syncing = msg.value;
+      }
+      if (msg.cardPosted) {
+        console.log('cardPosted', msg);
+        that.cardPostedPrompt(msg.deckTitle);
       }
     });
   },
@@ -239,7 +240,8 @@ export default {
     loadPageMine() {
       // console.log('loadPageMine called');
       const setDecks = function(website, url, that) {
-        console.log('setting pageMine', website);
+        // console.log('setting pageMine', website);
+        // console.log('userID', that.userCollection.user_id);
         that.decks = [{ title: url, cards: website.orderedCards }];
         if (website.orderlessCards.length > 0)
           that.decks.push({ title: 'Cards without a highlight', cards: website.orderlessCards });
@@ -274,41 +276,13 @@ export default {
       };
       getWebsite(this);
     },
-    async callAPI(data) {
-      let result = null;
-      const that = this;
-      const options = {
-        url: data.url,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-access-token': data.jwt,
-        },
-        method: data.method,
-      };
-      if (data.data) {
-        options.data = data.data;
-      }
-      await axios(options)
-        .then(response => {
-          result = response.data;
-          // console.log(result);
-        })
-        .catch(function(err) {
-          console.log(err);
-          that.connectionMsg = 'Unable to reach database';
-          this.loadingOthers = false;
-          this.loaded = true;
-          return null;
-        });
-      return result;
-    },
     async loadpageAll() {
       function getStorage() {
         return new Promise((resolve, reject) => {
           chrome.storage.local.get(
             ['websites', 'mineAndOthersWebsites', 'lastActiveTabUrl', 'highlightsViewMode'],
             function(items) {
-              console.log('    items', items);
+              // console.log('    items', items);
               const returnData = {};
               // let localDecksMeta;  // will need for adding cards to certain decks
               returnData.websites = items.websites;
@@ -328,7 +302,7 @@ export default {
       this.loadingOthers = true;
       this.connectionMsg = 'Getting Highlights';
       const storage = await getStorage();
-      // console.log('storage', storage);
+      console.log('storage', storage);
       if (storage.highlightsViewMode !== 'mineAndOthers') {
         chrome.storage.local.set({ highlightsViewMode: 'mineAndOthers' });
         chrome.runtime.sendMessage({
@@ -336,7 +310,7 @@ export default {
           refreshOrder: true,
           url: storage.lastActiveTabUrl,
         });
-        console.log('set storage view mode');
+        // console.log('set storage view mode');
         return null;
       }
 
@@ -395,7 +369,7 @@ export default {
         }
         this.loadingOthers = false;
         this.loaded = true;
-        console.log('found empty');
+        // console.log('found empty');
         return null;
       }
       if (!isEmpty(websites[url])) {
@@ -410,7 +384,7 @@ export default {
           }
         if (!isEmpty(apiWebsite.cards))
           if (!isEmpty(websites[url].cards)) {
-            console.log(websites[url].cards, apiWebsite.cards);
+            // console.log(websites[url].cards, apiWebsite.cards);
             for (const card in websites[url].cards) {
               let count = 0;
               for (const aCard in apiWebsite.cards) {
@@ -420,6 +394,7 @@ export default {
                 }
               }
               if (count === 0) {
+                console.log('cards not uploaded, cloudsync sent');
                 chrome.runtime.sendMessage({ cloudSync: true });
                 break;
               }
@@ -433,7 +408,10 @@ export default {
       let apiCardCount = 0;
       let localHighlightCount = 0;
       let localCardCount = 0;
-      if (apiWebsite.cards) apiCardCount = apiWebsite.cards.length;
+      // problem... new collected card is not in here..
+
+      if (apiWebsite.cards)
+        apiCardCount = filterOutCardCopies(apiWebsite.cards, this.userCollection.user_id).length;
       if (apiWebsite.highlights) apiHighlightCount = Object.keys(apiWebsite.highlights).length;
       if (mineAndOthersWebsites[url]) {
         if (mineAndOthersWebsites[url].orderedCards && mineAndOthersWebsites[url].orderlessCards)
@@ -461,6 +439,34 @@ export default {
         this.loadingOthers = false;
       }
     },
+    async callAPI(data) {
+      let result = null;
+      const that = this;
+      const options = {
+        url: data.url,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': data.jwt,
+        },
+        method: data.method,
+      };
+      if (data.data) {
+        options.data = data.data;
+      }
+      await axios(options)
+        .then(response => {
+          result = response.data;
+          // console.log(result);
+        })
+        .catch(function(err) {
+          console.log(err);
+          that.connectionMsg = 'Unable to reach database';
+          that.loadingOthers = false;
+          that.loaded = true;
+          return null;
+        });
+      return result;
+    },
     generateRandomHslaColor() {
       // round to an interval of 20, 0-360
       const hue = Math.round((Math.random() * 360) / 20) * 20;
@@ -483,6 +489,14 @@ export default {
           time: new Date().getTime(),
           card: card,
         },
+      });
+    },
+    collectCard(card) {
+      console.log('collecting card, card', card, this.userCollection.user_id);
+      chrome.runtime.sendMessage({
+        collectCardAndHighlight: true,
+        card: card,
+        userId: this.userCollection.user_id,
       });
     },
     cardOrCards(deckLength) {
@@ -585,7 +599,7 @@ export default {
       }
     },
     openLink(url) {
-      console.log('url to open', url);
+      // console.log('url to open', url);
       if (this.lastActiveTabUrl !== url) {
         chrome.tabs.create({ url: url });
         this.lastActiveTabUrl = url;
@@ -596,6 +610,16 @@ export default {
       if (this.clickedCardId !== card.card_id) {
         this.focusMainWinHighlight(card.card_id, card.highlight_id);
       }
+    },
+    cardPostedPrompt(title) {
+      const that = this;
+      this.cardPostedDeck = title;
+      async function countdown() {
+        setTimeout(() => {
+          that.cardPostedDeck = null;
+        }, 5000);
+      }
+      countdown();
     },
   },
 };
@@ -673,5 +697,20 @@ export default {
 }
 .title:hover {
   cursor: pointer;
+}
+#card-post-popup {
+  z-index: 50000;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: black;
+  text-align: center;
+  color: rgb(203, 203, 203);
+}
+
+#card-posted-deck {
+  display: inline;
+  color: white;
 }
 </style>

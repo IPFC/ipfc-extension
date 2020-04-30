@@ -78,7 +78,8 @@ if (Object.keys(serverNewer).length > 0) {
               // for new deleted from server, we need to delete locally and update deleted list
               if (!localHighlights[url].deleted) localHighlights[url].deleted = [];
               for (const item of serverNewer[url].deleted) {
-                localHighlights[url].deleted.push(item);
+                if (!localHighlights[url].deleted.includes(item))
+                  localHighlights[url].deleted.push(item);
                 if (item.card_id) {
                   sendOutDeleteCard(item.card_id, url);
                 } else if (item.highlight_id) {

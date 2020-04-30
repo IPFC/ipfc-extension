@@ -257,7 +257,6 @@ export default {
   computed: {
     unincludedTags() {
       // this now rides on review deck in getters
-      console.log('this.user_collection', this.user_collection);
       const allTagsList = this.user_collection.all_card_tags.list;
       const unincludedTagsList = [];
       if (!isEmpty(allTagsList))
@@ -313,9 +312,9 @@ export default {
         edited: new Date().getTime(),
       };
       if (cardData.highlight_id) this.card.highlight_id = cardData.highlight_id;
-      if (this.lastUsedDecks[cardData.highlight_url]) {
+      if (this.lastUsedDeck[cardData.highlight_url]) {
         for (const deck of this.decks_meta) {
-          if (deck.title === this.lastUsedDecks[cardData.highlight_url]) {
+          if (deck.title === this.lastUsedDeck[cardData.highlight_url]) {
             this.deck = deck;
             return null;
           }
@@ -355,7 +354,7 @@ export default {
       chrome.storage.local.get(
         [
           'user_collection',
-          'lastUsedDecks',
+          'lastUsedDeck',
           'pinata_keys',
           'newCardData',
           'toEditCardData',
@@ -371,7 +370,7 @@ export default {
             that.cancelled = true;
             return null;
           }
-          that.lastUsedDecks = items.lastUsedDecks ? items.lastUsedDecks : {};
+          that.lastUsedDeck = items.lastUsedDeck ? items.lastUsedDeck : {};
           that.user_collection = items.user_collection;
           that.decks_meta = items.decks_meta;
           that.jwt = items.jwt;
@@ -465,13 +464,18 @@ export default {
             backGottenText: this.$refs.myQuillEditorBack.quill.getText(),
           })
         );
+        // if (!unChanged)
+        // if (card.is_copy_of) {
+        //   card.is_copy_of = false;
+        //   card.card_id = uuidv4();
+        // }
         this.submitStep2(card, quill);
       });
     },
     submitStep2: async function(cardInput, quill) {
       const card = await this.getQuillData(cardInput, quill);
       if (card.card_tags.includes('Daily Review')) this.addCardToSchedule(card.card_id);
-      chrome.runtime.sendMessage({ storeCard: true, card: card });
+      chrome.runtime.sendMessage({ storeCardFromEditor: true, card: card });
       // if editing old card
       let updatingCard;
       if (this.toEditCardData) {
@@ -505,9 +509,9 @@ export default {
           deckId: this.deck.deck_id,
         });
       }
-      this.lastUsedDecks[card.highlight_url] = this.deck.title;
+      this.lastUsedDeck[card.highlight_url] = this.deck.title;
       chrome.storage.local.set({
-        lastUsedDecks: this.lastUsedDecks,
+        lastUsedDeck: this.lastUsedDeck,
         toEditCardData: null,
         newCardData: null,
       });

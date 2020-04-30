@@ -1,7 +1,6 @@
 import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { sendMesageToAllTabs } from '../background';
-import { putCard, postCard, postDeck } from '../highlighter/storageManager';
 const axios = require('axios');
 
 const syncStatus = {
@@ -259,17 +258,35 @@ async function uploadFailedItems(
 ) {
   if (!isEmpty(uploadFailedDecksPost)) {
     for (const entry of uploadFailedCardsPost) {
-      postDeck(jwt, serverUrl, entry.card, entry.deck);
+      sendOutMessage({
+        postDeck: true,
+        jwt: jwt,
+        serverUrl: serverUrl,
+        card: entry.card,
+        deck: entry.deck,
+      });
     }
   }
   if (!isEmpty(uploadFailedCardsPut)) {
     for (const entry of uploadFailedCardsPost) {
-      putCard(jwt, serverUrl, entry.card, entry.deck_id);
+      sendOutMessage({
+        putCard: true,
+        jwt: jwt,
+        serverUrl: serverUrl,
+        card: entry.card,
+        deckId: entry.deck_id,
+      });
     }
   }
   if (!isEmpty(uploadFailedCardsPost)) {
     for (const entry of uploadFailedCardsPost) {
-      postCard(jwt, serverUrl, entry.card, entry.deck_id);
+      sendOutMessage({
+        postCard: true,
+        jwt: jwt,
+        serverUrl: serverUrl,
+        card: entry.card,
+        deckId: entry.deck_id,
+      });
     }
   }
 }
@@ -581,16 +598,20 @@ async function compareLocalAndServerWebsites(localWebsites, serverWebsites, user
               else if (isEmpty(localWebsite.deleted) && !isEmpty(serverWebsite.deleted))
                 serverNewer[url].deleted = serverWebsite.deleted;
               else if (!isEmpty(serverWebsite.deleted) && !isEmpty(localWebsite.deleted)) {
-                const mergedDeleted = serverWebsite.deleted.concat(
+                const mergedDeletedRaw = serverWebsite.deleted.concat(
                   localWebsite.deleted.filter(entry => !serverWebsite.deleted.includes(entry))
                 );
-                // console.log(
-                //   'mergedDeleted, serverWebsite.deleted, localWebsite.deleted',
-                //   mergedDeleted,
-                //   serverWebsite.deleted,
-                //   localWebsite.deleted,
-                //   timestamp()
-                // );
+                const mergedDeleted = [];
+                for (const entry of mergedDeletedRaw) {
+                  if (!mergedDeleted.includes(entry)) mergedDeleted.push(entry);
+                }
+                console.log(
+                  'mergedDeleted, serverWebsite.deleted, localWebsite.deleted',
+                  mergedDeleted,
+                  serverWebsite.deleted,
+                  localWebsite.deleted,
+                  timestamp()
+                );
                 if (!isEqual(mergedDeleted, serverWebsite.deleted))
                   localNewer[url].deleted = localWebsite.deleted;
                 if (!isEqual(mergedDeleted, localWebsite.deleted)) {
@@ -777,7 +798,8 @@ async function saveNewerToLocal(
                 }
                 if (!isEmpty(nWebsite.deleted)) {
                   if (!lWebsite.deleted) lWebsite.deleted = [];
-                  for (const entry of nWebsite.deleted) lWebsite.deleted.push(entry);
+                  for (const entry of nWebsite.deleted)
+                    if (!lWebsite.deleted.includes(entry)) lWebsite.deleted.push(entry);
                 }
                 // unnecesary? not sure if getting changed without this and the JSON.parse
                 localWebsites[url] = lWebsite;
