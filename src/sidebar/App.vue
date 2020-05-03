@@ -23,14 +23,24 @@
         ></font-awesome-icon>
         <p class="ml-3 mb-0" v-text="connectionMsg"></p
       ></b-row>
-      <b-row id="options-row" class="mt-3 ml-3 mb-n2">
+      <b-row id="options-row" class="mt-2 ml-3 mb-2 d-flex">
         <p class="mr-2 text-muted">card backs</p>
         <toggle-button
           v-model="showCardBacks"
+          class="m-0"
           :width="60"
           :labels="{ checked: 'show', unchecked: 'hide' }"
         ></toggle-button>
       </b-row>
+      <!-- <b-row v-if="uncollectedCards.length > 0" class="mt-1 ml-3 mb-1 d-flex align-items-center">
+        <p class="mr-4 text-muted">collect all</p>
+        <font-awesome-icon
+          icon="plus-square"
+          size="2x"
+          class="collect-btn"
+          @click="collectAll(uncollectedCards)"
+        ></font-awesome-icon>
+      </b-row> -->
       <b-row v-for="deck of decks" :key="deck.title" class="deck-row mb-3 m-0">
         <!-- v-if="deck.title && deck.cards > 0 && !refreshingDeck"  -->
         <b-col class="deck-col m-auto p-0">
@@ -124,7 +134,17 @@ export default {
       cardPostedDeck: null,
     };
   },
-  computed: {},
+  computed: {
+    uncollectedCards() {
+      const cards = [];
+      if (this.selectedTab === 'page-all')
+        for (const deck of this.decks)
+          for (const card of deck.cards) {
+            if (this.userCollection.user_id !== card.user_id) cards.push(card);
+          }
+      return cards;
+    },
+  },
   watch: {
     showCardBacks() {
       this.refreshCardsKey++;
@@ -499,6 +519,9 @@ export default {
         userId: this.userCollection.user_id,
       });
     },
+    collectAll(cards) {
+      for (const card of cards) this.collectCard(card);
+    },
     cardOrCards(deckLength) {
       if (deckLength === 1) {
         return '';
@@ -629,6 +652,11 @@ export default {
 .spinner-div {
   height: calc(100vh - 85px);
 }
+.collect-btn {
+  color: #f8690d;
+  cursor: pointer;
+}
+
 .flashcard-outer {
   width: 90%;
 }

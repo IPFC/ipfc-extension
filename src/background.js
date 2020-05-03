@@ -6,6 +6,7 @@ import { cloudSync, syncStatus } from './utils/cloudSync';
 import { sendMesageToAllTabs } from './utils/messaging';
 import { login, signup } from './utils/loginLogout';
 import { createSidebar } from './utils/sidebarContentScript';
+import { collectCardAndHighlight, postCard } from './highlighter/storageManager';
 const uuidv4 = require('uuid/v4');
 
 const debounce = require('lodash/debounce');
@@ -113,7 +114,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     });
   }
   if (msg.collectCardAndHighlight) {
-    sendMesageToAllTabs({ collectCardAndHighlight: true, card: msg.card, userId: msg.userId });
+    collectCardAndHighlight(msg.card, msg.userId);
   }
   if (msg.focusMainWinHighlight) {
     sendMesageToAllTabs({ focusMainWinHighlight: true, highlightId: msg.highlightId });
@@ -139,13 +140,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
   if (msg.updateActiveTab) updateActiveTab();
   if (msg.postCard) {
-    sendMesageToAllTabs({
-      postCard: true,
-      jwt: msg.jwt,
-      serverUrl: msg.serverUrl,
-      card: msg.card,
-      deckId: msg.deckId,
-    });
+    console.log('posting card', msg);
+    postCard(msg.jwt, msg.serverUrl, msg.card, msg.deckId, msg.deckTitle);
   }
   if (msg.putCard) {
     sendMesageToAllTabs({

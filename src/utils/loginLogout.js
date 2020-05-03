@@ -74,20 +74,31 @@ function getMeta(serverUrl, token) {
 const signup = function(email, password) {
   chrome.storage.local.get(['serverUrl'], items => {
     const pinataSignupEndpoint = 'https://api.pinata.cloud/users/signUpNewUser';
-    const pinataSignupData = {
-      username: email,
-      password: password,
-    };
     const params = new URLSearchParams();
     params.append('username', email);
     params.append('password', password);
-    let data;
     axios
       .post(pinataSignupEndpoint, params)
       .then(response => {
-        data = response.data;
+        const data = response.data;
         console.log('APICall data', data);
-        return data;
+        const signupUrl = items.serverUrl + '/sign_up';
+        const signUpData = {
+          email: email,
+          password: password,
+          user_collection: defaultCollection.user_collection,
+          pinata_api: data.userInformation.api_key,
+          pinata_key: data.userInformation.api_secret,
+        };
+        const headers = { 'Content-Type': 'application/json' };
+        const signupCallback = function(data) {
+          if (!data.message) {
+            chrome.runtime.sendMessage({ failedLogin: true, apiErrorMsg: data.error });
+          } else {
+            login(email, password);
+          }
+        };
+        callAPI(signupUrl, headers, 'POST', signUpData, signupCallback);
       })
       .catch(function(err) {
         console.log(err.response);
@@ -97,29 +108,6 @@ const signup = function(email, password) {
           apiErrorMsg: err.response.data.error || err.response,
         });
       });
-    const pinataHeaders = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    };
-    const pinataSignupCallback = function(result) {
-      const signupUrl = items.serverUrl + '/sign_up';
-      const data = {
-        email: email,
-        password: password,
-        user_collection: defaultCollection.user_collection,
-        pinata_api: result.userInformation.api_key,
-        pinata_key: result.userInformation.api_secret,
-      };
-      const headers = { 'Content-Type': 'application/json' };
-      const signupCallback = function(data) {
-        if (!data.message) {
-          chrome.runtime.sendMessage({ failedLogin: true, apiErrorMsg: data.error });
-        } else {
-          login(email, password);
-        }
-      };
-      callAPI(signupUrl, headers, 'POST', data, signupCallback);
-    };
-    callAPI(pinataSignupEndpoint, pinataHeaders, 'POST', pinataSignupData, pinataSignupCallback);
   });
 };
 export { login, signup };

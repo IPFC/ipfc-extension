@@ -286,6 +286,7 @@ async function uploadFailedItems(
         serverUrl: serverUrl,
         card: entry.card,
         deckId: entry.deck_id,
+        deckTitle: entry.title,
       });
     }
   }
@@ -605,13 +606,13 @@ async function compareLocalAndServerWebsites(localWebsites, serverWebsites, user
                 for (const entry of mergedDeletedRaw) {
                   if (!mergedDeleted.includes(entry)) mergedDeleted.push(entry);
                 }
-                console.log(
-                  'mergedDeleted, serverWebsite.deleted, localWebsite.deleted',
-                  mergedDeleted,
-                  serverWebsite.deleted,
-                  localWebsite.deleted,
-                  timestamp()
-                );
+                // console.log(
+                //   'mergedDeleted, serverWebsite.deleted, localWebsite.deleted',
+                //   mergedDeleted,
+                //   serverWebsite.deleted,
+                //   localWebsite.deleted,
+                //   timestamp()
+                // );
                 if (!isEqual(mergedDeleted, serverWebsite.deleted))
                   localNewer[url].deleted = localWebsite.deleted;
                 if (!isEqual(mergedDeleted, localWebsite.deleted)) {
@@ -835,33 +836,34 @@ async function saveNewerToLocal(
   const currentWebsites = await getStorageWebsites();
   // bug =deleted is not in local websites.....
   // save to local
+  // if intitial doesn't equal current, means websites was changed during sync
   if (!isEqual(initialWebsites, currentWebsites)) {
-    for (const iWebsite in initialWebsites) {
-      if (!Object.keys(currentWebsites).includes(iWebsite)) console.log(iWebsite);
-      for (const cWebsite in currentWebsites) {
-        if (!Object.keys(initialWebsites).includes(cWebsite)) console.log(cWebsite);
-        if (iWebsite === cWebsite) {
-          if (!isEqual(initialWebsites[iWebsite], currentWebsites[cWebsite])) {
-            for (const iItem in initialWebsites[iWebsite]) {
-              if (!Object.keys(cWebsite).includes(iItem))
-                console.log('cWebsite not included', initialWebsites[iWebsite][iItem]);
-              for (const cItem in currentWebsites[cWebsite]) {
-                if (!Object.keys(iWebsite).includes(cItem))
-                  console.log('iWebsite not included', currentWebsites[cWebsite][cItem]);
-                if (iItem === cItem) {
-                  if (!isEqual(iItem, cItem))
-                    console.log(
-                      'difference here',
-                      currentWebsites[cWebsite][cItem],
-                      initialWebsites[iWebsite][iItem]
-                    );
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    // for (const iWebsite in initialWebsites) {
+    //   if (!Object.keys(currentWebsites).includes(iWebsite)) console.log(iWebsite);
+    //   for (const cWebsite in currentWebsites) {
+    //     if (!Object.keys(initialWebsites).includes(cWebsite)) console.log(cWebsite);
+    //     if (iWebsite === cWebsite) {
+    //       if (!isEqual(initialWebsites[iWebsite], currentWebsites[cWebsite])) {
+    //         for (const iItem in initialWebsites[iWebsite]) {
+    //           if (!Object.keys(cWebsite).includes(iItem))
+    //             console.log('cWebsite not included', initialWebsites[iWebsite][iItem]);
+    //           for (const cItem in currentWebsites[cWebsite]) {
+    //             if (!Object.keys(iWebsite).includes(cItem))
+    //               console.log('iWebsite not included', currentWebsites[cWebsite][cItem]);
+    //             if (iItem === cItem) {
+    //               if (!isEqual(iItem, cItem))
+    //                 console.log(
+    //                   'difference here',
+    //                   currentWebsites[cWebsite][cItem],
+    //                   initialWebsites[iWebsite][iItem]
+    //                 );
+    //             }
+    //           }
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
     return false;
   } else {
     if (isEmpty(localWebsites)) localWebsites = {};

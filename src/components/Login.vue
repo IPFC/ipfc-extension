@@ -70,6 +70,10 @@
         <b-form-valid-feedback v-if="showSignUp" :state="pinataSecretValidation"
           >Looks Good.</b-form-valid-feedback
         > -->
+        <p v-if="showSignUp" class="mt-1">
+          Signing up with IPFC, you will recieve a Pinata.cloud account with 1GB of free storage.
+          Check your email for activation.
+        </p>
         <span id="login-signup-buttons">
           <b-button
             v-if="showSignUp"

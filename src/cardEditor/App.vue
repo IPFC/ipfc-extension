@@ -507,6 +507,7 @@ export default {
           serverUrl: this.serverUrl,
           card: card,
           deckId: this.deck.deck_id,
+          deckTitle: this.deck.title,
         });
       }
       this.lastUsedDeck[card.highlight_url] = this.deck.title;

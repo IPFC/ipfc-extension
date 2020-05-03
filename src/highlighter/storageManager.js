@@ -21,7 +21,6 @@ const getCardsInOrder = function(rawCards, order, userId, mineAndOthers = false)
     for (const card of cards) {
       if (card.highlight_id === highlightId) {
         orderedCards.push(card);
-        break;
       }
     }
   }
@@ -251,11 +250,6 @@ const collectCardAndHighlight = function(card, userId) {
         card.is_copy_of = card.card_id;
         card.card_id = cardId;
         storeCard(card, () => {
-          chrome.runtime.sendMessage({
-            refreshHighlights: true,
-            refreshOrder: true,
-            url: card.highlight_url,
-          });
           postCollectedCard(
             items.lastUsedDeck,
             card.highlight_url,
@@ -284,18 +278,38 @@ function collectCard(cardId, url, userId, highlightId) {
               card.card_id = uuidv4();
               if (highlightId) card.highlight_id = highlightId;
               cardToPost = card;
-              storeCard(card);
+              storeCard(card, () => {
+                chrome.runtime.sendMessage({
+                  refreshHighlights: true,
+                  refreshOrder: true,
+                  url: url,
+                });
+                if (cardToPost) {
+                  postCollectedCard(
+                    items.lastUsedDeck,
+                    url,
+                    items.decks_meta,
+                    cardToPost,
+                    items.jwt
+                  );
+                }
+              });
               break;
             }
           }
-      chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
-      if (cardToPost) {
-        postCollectedCard(items.lastUsedDeck, url, items.decks_meta, cardToPost, items.jwt);
-      }
     }
   );
 }
 function postCollectedCard(lastUsedDeck, url, decksMeta, cardToPost, jwt) {
+  console.log(
+    'postCollectedCard',
+    postCollectedCard,
+    lastUsedDeck,
+    url,
+    decksMeta,
+    cardToPost,
+    jwt
+  );
   const formatTitle = function(title) {
     let frontTrunc;
     if (!title.includes('http://') && !title.includes('https://')) frontTrunc = title;
@@ -328,18 +342,11 @@ function postCollectedCard(lastUsedDeck, url, decksMeta, cardToPost, jwt) {
       const decksByEdited = sortBy(decksMeta, 'edited');
       toPostDeck = decksByEdited[0];
     }
-    chrome.storage.sync.get(['serverUrl'], syncItems => {
-      chrome.runtime.sendMessage({
-        postCard: true,
-        jwt: jwt,
-        serverUrl: syncItems.serverUrl,
-        card: cardToPost,
-        deckId: toPostDeck.deck_id,
-        cardPosted: true,
-        deckTitle: toPostDeck.title,
-      });
-    });
   }
+  console.log('toPostDeck', toPostDeck);
+  chrome.storage.sync.get(['serverUrl'], syncItems => {
+    postCard(jwt, syncItems.serverUrl, cardToPost, toPostDeck.deck_id, toPostDeck.title);
+  });
 }
 // can also be used to replace a card
 const storeCard = function(card, callback) {
@@ -434,10 +441,15 @@ const storeCard = function(card, callback) {
     );
   });
 };
-const addNewCardToHighlight = function(highlight, highlightId, url, userId) {
-  chrome.runtime.sendMessage({ addNewCardToHighlight: true, userId: userId, url: url });
+const addNewCardToHighlight = function(highlightId, url, userId) {
+  chrome.runtime.sendMessage({
+    addNewCardToHighlight: true,
+    highlightId: highlightId,
+    url: url,
+    userId: userId,
+  });
 };
-const postCard = async function(jwt, serverUrl, card, deckId) {
+const postCard = async function(jwt, serverUrl, card, deckId, deckTitle) {
   console.log('posting card', jwt, serverUrl, card, deckId);
   const options = {
     url: serverUrl + '/post_card',
@@ -463,6 +475,7 @@ const postCard = async function(jwt, serverUrl, card, deckId) {
           if (!uploadFailedCardsPost.includes(entry)) {
             uploadFailedCardsPost.splice(uploadFailedCardsPost.indexOf(entry), 1);
             chrome.storage.local.set({ uploadFailedCardsPost: uploadFailedCardsPost });
+            chrome.runtime.sendMessage({ deckPosted: true, deckTitle: deckTitle });
           }
       });
       chrome.runtime.sendMessage({ cloudSync: true });
@@ -532,8 +545,8 @@ const postDeck = async function(jwt, serverUrl, card, deck) {
   // let result;
   await axios(options)
     .then(response => {
-      // result = response.data;
-      // console.log('deck posted, result: ', result);
+      const result = response.data;
+      console.log('deck posted, result: ', result);
       chrome.storage.local.get(['uploadFailedDecksPost'], items => {
         const uploadFailedDecksPost = items.uploadFailedDecksPost;
         const entry = { card: card, deck: deck };

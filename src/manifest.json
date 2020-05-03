@@ -1,7 +1,7 @@
 {
   "name": "Inter Planetary Flash Cards - Extension",
   "description": "Quickly make flashcards and highlights from websites and sync them to multiplatform flashcard apps for review",
-  "version": 0.101,
+  "version": 0.102,
   "manifest_version": 2,
   "icons": {
     "48": "icons/icon_48.png",
@@ -20,7 +20,7 @@
     "matches": ["http://*/*", "https://*/*"],
     "exclude_globs": ["*ipfc.tech*", "*localhost*", "*chrome-extension*", "*moz-extension*", "*about:*"],
     "js": [
-      "highlighter/highlighter.js",
+      "highlighter/highlighterContentScript.js",
       "utils/sidebarContentScript.js"
     ],
     "css": ["contentStyles.css"],
