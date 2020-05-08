@@ -1,7 +1,7 @@
 {
   "name": "Inter Planetary Flash Cards - Extension",
   "description": "Quickly make flashcards and highlights from websites and sync them to multiplatform flashcard apps for review",
-  "version": 0.103,
+  "version": 0.104,
   "manifest_version": 2,
   "icons": {
     "48": "icons/icon_48.png",

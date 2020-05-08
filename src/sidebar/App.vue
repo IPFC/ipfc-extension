@@ -260,7 +260,7 @@ export default {
     loadPageMine() {
       // console.log('loadPageMine called');
       const setDecks = function(website, url, that) {
-        // console.log('setting pageMine', website);
+        console.log('setting pageMine', website);
         // console.log('userID', that.userCollection.user_id);
         that.decks = [{ title: url, cards: website.orderedCards }];
         if (website.orderlessCards.length > 0)

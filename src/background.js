@@ -6,7 +6,12 @@ import { cloudSync, syncStatus } from './utils/cloudSync';
 import { sendMesageToAllTabs } from './utils/messaging';
 import { login, signup } from './utils/loginLogout';
 import { createSidebar } from './utils/sidebarContentScript';
-import { collectCardAndHighlight, postCard } from './highlighter/storageManager';
+import {
+  collectCardAndHighlight,
+  postCard,
+  storeCard,
+  deleteServerCard,
+} from './highlighter/storageManager';
 const uuidv4 = require('uuid/v4');
 
 const debounce = require('lodash/debounce');
@@ -82,7 +87,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     });
   }
   if (msg.storeCardFromEditor) {
-    sendMesageToAllTabs({ storeCard: true, card: msg.card });
+    storeCard(msg.card);
   }
   if (msg.highlightClicked) {
     // console.log('highlight clicked msg', msg);
@@ -160,6 +165,9 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       card: msg.card,
       deck: msg.deck,
     });
+  }
+  if (msg.deleteServerCard) {
+    deleteServerCard(msg.jwt, msg.serverUrl, msg.card, msg.deckId);
   }
 });
 

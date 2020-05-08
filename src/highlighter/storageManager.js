@@ -2,6 +2,8 @@ import { isEmpty, sortBy } from 'lodash';
 import { addHighlightError } from './errorManager';
 import { highlight } from './highlighter';
 import { filterOutCardCopies, combineMineAndOthersWebsites } from '../utils/dataProcessing';
+import { sendMesageToAllTabs } from '../utils/messaging';
+
 const axios = require('axios');
 const uuidv4 = require('uuid/v4');
 const $ = require('jquery');
@@ -279,11 +281,6 @@ function collectCard(cardId, url, userId, highlightId) {
               if (highlightId) card.highlight_id = highlightId;
               cardToPost = card;
               storeCard(card, () => {
-                chrome.runtime.sendMessage({
-                  refreshHighlights: true,
-                  refreshOrder: true,
-                  url: url,
-                });
                 if (cardToPost) {
                   postCollectedCard(
                     items.lastUsedDeck,
@@ -373,6 +370,7 @@ const storeCard = function(card, callback) {
     if (!mineAndOthersWebsites[url].cards) {
       mineAndOthersWebsites[url].cards = [];
     }
+    console.log('before storing,', websites[url].cards, mineAndOthersWebsites[url].cards);
     for (const existingCard of websites[url].cards) {
       if (existingCard.card_id === card.card_id) {
         websites[url].cards.splice(websites[url].cards.indexOf(existingCard), 1);
@@ -390,20 +388,15 @@ const storeCard = function(card, callback) {
     }
     websites[url].cards.push(card);
     mineAndOthersWebsites[url].cards.push(card);
-    // console.log('card stored', highlights.cards);
+    console.log('card stored', websites[url].cards, mineAndOthersWebsites[url].cards);
     chrome.storage.local.set(
       {
         websites: websites,
         mineAndOthersWebsites: mineAndOthersWebsites,
       },
       () => {
-        chrome.runtime.sendMessage({
-          refreshHighlights: true,
-          refreshOrder: true,
-          url: url,
-        });
         // make sure mcorresponding highlight has card's ID included.
-        if (card.highlight_id)
+        if (card.highlight_id) {
           if (!isEmpty(websites[url].highlights))
             if (websites[url].highlights[card.highlight_id])
               if (websites[url].highlights[card.highlight_id].card_id) {
@@ -419,23 +412,30 @@ const storeCard = function(card, callback) {
                   websites: websites,
                 });
               }
-        if (!isEmpty(mineAndOthersWebsites[url].highlights))
-          if (mineAndOthersWebsites[url].highlights[card.highlight_id])
-            if (mineAndOthersWebsites[url].highlights[card.highlight_id].card_id) {
-              if (
-                mineAndOthersWebsites[url].highlights[card.highlight_id].card_id !== card.card_id
-              ) {
+          if (!isEmpty(mineAndOthersWebsites[url].highlights))
+            if (mineAndOthersWebsites[url].highlights[card.highlight_id])
+              if (mineAndOthersWebsites[url].highlights[card.highlight_id].card_id) {
+                if (
+                  mineAndOthersWebsites[url].highlights[card.highlight_id].card_id !== card.card_id
+                ) {
+                  mineAndOthersWebsites[url].highlights[card.highlight_id].card_id = card.card_id;
+                  chrome.storage.local.set({
+                    mineAndOthersWebsites: mineAndOthersWebsites,
+                  });
+                }
+              } else {
                 mineAndOthersWebsites[url].highlights[card.highlight_id].card_id = card.card_id;
                 chrome.storage.local.set({
                   mineAndOthersWebsites: mineAndOthersWebsites,
                 });
               }
-            } else {
-              mineAndOthersWebsites[url].highlights[card.highlight_id].card_id = card.card_id;
-              chrome.storage.local.set({
-                mineAndOthersWebsites: mineAndOthersWebsites,
-              });
-            }
+        }
+        const message = {
+          refreshHighlights: true,
+          refreshOrder: true,
+          url: url,
+        };
+        sendMesageToAllTabs(message);
         if (callback) callback();
       }
     );
@@ -527,6 +527,30 @@ const putCard = async function(jwt, serverUrl, card, deckId) {
         uploadFailedCardsPut.push({ card: card, deck_id: deckId });
         chrome.storage.local.set({ uploadFailedCardsPut: uploadFailedCardsPut });
       });
+      throw new Error(err);
+    });
+};
+const deleteServerCard = async function(jwt, serverUrl, card, deckId) {
+  const options = {
+    url: serverUrl + '/delete_card',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-access-token': jwt,
+    },
+    method: 'DELETE',
+    data: {
+      card: card,
+      deck_id: deckId,
+    },
+  };
+  let result;
+  console.log('deleting server card', options.data);
+  await axios(options)
+    .then(response => {
+      result = response.data;
+      console.log(' card deleted, result: ', result);
+    })
+    .catch(function(err) {
       throw new Error(err);
     });
 };
@@ -805,6 +829,7 @@ export {
   deleteCard,
   postCard,
   putCard,
+  deleteServerCard,
   postDeck,
   loadThisUrlsHighlights,
   loadHighlight,

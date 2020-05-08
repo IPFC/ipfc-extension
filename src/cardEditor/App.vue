@@ -181,11 +181,12 @@ export default {
       backFocused: false,
       frontFocusClass: '',
       backFocusClass: '',
-      initialDeckState: null,
+      initialCard: null,
       addingTag: false,
       newTagTitle: '',
       addingDeck: false,
       newDeckTitle: '',
+      newDeckToPost: null,
       deck: {
         title: '',
         edited: 0,
@@ -255,6 +256,16 @@ export default {
     };
   },
   computed: {
+    unChanged() {
+      if (
+        this.card.front_rich_text === this.initialCard.front_rich_text &&
+        this.card.back_rich_text === this.initialCard.back_rich_text &&
+        this.card.card_tags === this.initialCard.card_tags &&
+        this.card.deck_title === this.initialCard.deck_title
+      )
+        return true;
+      else return false;
+    },
     unincludedTags() {
       // this now rides on review deck in getters
       const allTagsList = this.user_collection.all_card_tags.list;
@@ -293,24 +304,27 @@ export default {
   methods: {
     setCard(cardData) {
       this.card = {
-        card_tags: ['Daily Review'],
+        card_tags: cardData.card_tags || ['Daily Review'],
         front_text: cardData.selection
           ? cardData.selection
           : cardData.front_text
           ? cardData.front_text
           : '',
-        back_text: cardData.back_text ? cardData.back_text : '',
+        back_text: cardData.back_text || '',
         front_rich_text: cardData.selection
           ? cardData.selection
           : cardData.front_rich_text
           ? cardData.front_rich_text
           : '',
-        back_rich_text: cardData.back_rich_text ? cardData.back_rich_text : '',
+        back_rich_text: cardData.back_rich_text || '',
         card_id: cardData.card_id,
         user_id: cardData.user_id,
         highlight_url: cardData.highlight_url,
-        edited: new Date().getTime(),
+        edited: cardData.edited || null,
+        deck_title: cardData.deck_title || this.deck.title,
+        deck_id: cardData.deck_id || this.deck.deck_id,
       };
+      this.initialCard = JSON.parse(JSON.stringify(this.card));
       if (cardData.highlight_id) this.card.highlight_id = cardData.highlight_id;
       if (this.lastUsedDeck[cardData.highlight_url]) {
         for (const deck of this.decks_meta) {
@@ -324,12 +338,14 @@ export default {
       } else this.setDeck(this.formatTitle(cardData.highlight_url));
     },
     setDeck(deckTitle) {
+      console.log('this.decks_meta', this.decks_meta);
       for (const deck of this.decks_meta) {
         if (deck.title === deckTitle) {
           this.deck = deck;
           return null;
         }
       }
+      // if not in decks, its a new deck:
       const newDeck = {
         cards: [this.card],
         user_id: this.user_collection.user_id,
@@ -348,6 +364,7 @@ export default {
       this.decks_meta.push(newDeck);
       this.deck = newDeck;
       this.newDeckToPost = deckTitle;
+      console.log('this.newDeckToPost', this.newDeckToPost);
     },
     loadStorage() {
       const that = this;
@@ -428,7 +445,7 @@ export default {
     doneCheck: function() {
       if (!this.unChanged) {
         this.submit(this.card);
-      }
+      } else window.close();
     },
     getQuillData: function(cardInput, quill) {
       // copy image and plaintext
@@ -453,6 +470,7 @@ export default {
     submit(card) {
       // this focuses both sides so that quill is showing
       card.edited = new Date().getTime();
+      if (card.is_copy_of) delete card.is_copy_of;
       this.backFocused = true;
       this.frontFocused = true;
       this.$nextTick(() => {
@@ -474,41 +492,66 @@ export default {
     },
     submitStep2: async function(cardInput, quill) {
       const card = await this.getQuillData(cardInput, quill);
-      if (card.card_tags.includes('Daily Review')) this.addCardToSchedule(card.card_id);
+      console.log('card saving', card);
       chrome.runtime.sendMessage({ storeCardFromEditor: true, card: card });
-      // if editing old card
-      let updatingCard;
+      // editing old card?
+      let updatingCard = false;
       if (this.toEditCardData) {
         if (!this.newCardData) updatingCard = true;
         else if (this.toEditCardData.time > this.newCardData.time) updatingCard = true;
       }
-      if (this.newDeckToPost === this.deck.title) {
-        this.deck.card_count = 1;
-        this.deck.cards = [card];
+      function postDeck(jwt, serverUrl, card, deck) {
+        deck.card_count = 1;
+        deck.cards = [card];
         chrome.runtime.sendMessage({
           postDeck: true,
-          jwt: this.jwt,
-          serverUrl: this.serverUrl,
+          jwt: jwt,
+          serverUrl: serverUrl,
           card: card,
-          deck: this.deck,
+          deck: deck,
         });
-      } else if (updatingCard) {
+      }
+      function putCard(jwt, serverUrl, card, deckId) {
         chrome.runtime.sendMessage({
           putCard: true,
-          jwt: this.jwt,
-          serverUrl: this.serverUrl,
+          jwt: jwt,
+          serverUrl: serverUrl,
           card: card,
-          deckId: this.deck.deck_id,
+          deckId: deckId,
         });
-      } else {
+      }
+      function postCard(jwt, serverUrl, card, deckId, deckTitle) {
         chrome.runtime.sendMessage({
           postCard: true,
-          jwt: this.jwt,
-          serverUrl: this.serverUrl,
+          jwt: jwt,
+          serverUrl: serverUrl,
           card: card,
-          deckId: this.deck.deck_id,
-          deckTitle: this.deck.title,
+          deckId: deckId,
+          deckTitle: deckTitle,
         });
+      }
+      function deleteServerCard(jwt, serverUrl, card, deckId) {
+        chrome.runtime.sendMessage({
+          deleteServerCard: true,
+          jwt: jwt,
+          serverUrl: serverUrl,
+          card: card,
+          deckId: deckId,
+        });
+      }
+      console.log('this.newDeckToPost, this.deck.title', this.newDeckToPost, this.deck.title);
+      if (this.newDeckToPost === this.deck.title) {
+        if (card.card_tags.includes('Daily Review')) this.addCardToSchedule(card.card_id);
+        postDeck(this.jwt, this.serverUrl, card, this.deck);
+      } else if (updatingCard) {
+        // if it's been moved, delete from previous deck, post to new
+        if (this.card.deck_title !== this.initialCard.deck_title) {
+          deleteServerCard(this.jwt, this.serverUrl, card, this.initialCard.deck_id);
+          postDeck(this.jwt, this.serverUrl, card, this.deck);
+        } else putCard(this.jwt, this.serverUrl, card, this.deck.deck_id);
+      } else {
+        if (card.card_tags.includes('Daily Review')) this.addCardToSchedule(card.card_id);
+        postCard(this.jwt, this.serverUrl, card, this.deck.deck_id, this.deck.title);
       }
       this.lastUsedDeck[card.highlight_url] = this.deck.title;
       chrome.storage.local.set({
@@ -522,15 +565,19 @@ export default {
     // use later for dropdown menu, copy to other deck
     switchDeck(deckId) {
       for (const deck of this.decks_meta) {
-        if (deck.deck_id === deckId) this.deck = deck;
+        if (deck.deck_id === deckId) {
+          this.deck = deck;
+          this.card.deck_title = deck.title;
+          this.card.deck_id = deck.deck_id;
+        }
       }
     },
     removeTagFromCard(tag) {
-      const card = JSON.parse(JSON.stringify(this.card));
-      card.card_tags.splice(card.card_tags.indexOf(tag), 1);
+      this.card.card_tags.splice(this.card.card_tags.indexOf(tag), 1);
     },
     addTagToCard(tag) {
       this.card.card_tags.unshift(tag);
+      console.log(this.card);
     },
     toggleAddingTag: function() {
       this.addingTag = !this.addingTag;
@@ -559,6 +606,7 @@ export default {
         };
         this.decks_meta.push(emptyDeck);
         this.deck = emptyDeck;
+        this.newDeckToPost = this.newDeckTitle;
         this.toggleAddingDeck();
         this.newDeckTitle = '';
       }
