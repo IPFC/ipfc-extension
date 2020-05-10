@@ -1,17 +1,22 @@
 // import store from './store';
-// const throttle = require('lodash/throttle');
 import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { cloudSync, syncStatus } from './utils/cloudSync';
-import { sendMesageToAllTabs } from './utils/messaging';
+import { sendMessageToAllTabs, sendMessageToActiveTab } from './utils/messaging';
 import { login, signup } from './utils/loginLogout';
 import { createSidebar } from './utils/sidebarContentScript';
 import {
   collectCardAndHighlight,
-  postCard,
   storeCard,
+  deleteCard,
+  putCard,
+  postCard,
+  postDeck,
+  deleteHighlight,
   deleteServerCard,
+  collectHighlight,
 } from './highlighter/storageManager';
+import { cleanedUrl } from './utils/dataProcessing';
 const uuidv4 = require('uuid/v4');
 
 const debounce = require('lodash/debounce');
@@ -86,9 +91,6 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       chrome.windows.update(items.lastActiveWindow, { focused: msg.refocus });
     });
   }
-  if (msg.storeCardFromEditor) {
-    storeCard(msg.card);
-  }
   if (msg.highlightClicked) {
     // console.log('highlight clicked msg', msg);
     chrome.storage.local.get(['websites', 'mineAndOthersWebsites', 'user_collection'], items => {
@@ -121,11 +123,31 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.collectCardAndHighlight) {
     collectCardAndHighlight(msg.card, msg.userId);
   }
-  if (msg.focusMainWinHighlight) {
-    sendMesageToAllTabs({ focusMainWinHighlight: true, highlightId: msg.highlightId });
+  if (msg.deleteHighlight) {
+    deleteHighlight(msg.url, msg.id, msg.thenDeletecard || null);
   }
   if (msg.deleteCard) {
-    sendMesageToAllTabs({ deleteCard: true, url: msg.url, card: msg.card });
+    deleteCard(msg.url, msg.card);
+  }
+  if (msg.deleteServerCard) {
+    deleteServerCard(msg.jwt, msg.serverUrl, msg.card, msg.deckId);
+  }
+  if (msg.storeCard) {
+    storeCard(msg.card);
+  }
+  if (msg.putCard) {
+    putCard(msg.jwt, msg.serverUrl, msg.card, msg.deckId);
+  }
+  if (msg.postCard) {
+    console.log('posting card', msg);
+    postCard(msg.jwt, msg.serverUrl, msg.card, msg.deckId, msg.deckTitle);
+  }
+  if (msg.postDeck) {
+    postDeck(msg.jwt, msg.serverUrl, msg.card, msg.deck);
+  }
+  if (msg.collectHighlight) {
+    if (msg.cardId) collectHighlight(msg.highlight, msg.url, msg.userId, msg.cardId);
+    else collectHighlight(msg.highlight, msg.url, msg.userId);
   }
   // if (msg.highlightDeleted) {
   //   chrome.storage.local.get(['sidebarWinId'], function(items) {
@@ -136,39 +158,18 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   //   });
   // }
   if (msg.refreshHighlights) {
-    // console.log('    refresh highlights message recieved');
-    if (msg.refreshOrder) SendOutRefresh(null, true);
-    else SendOutRefresh(null, null);
+    // sending to tabs
+    console.log('refresh highlights, sender: \n----- ', msg.sender);
+    SendOutRefresh(msg.url, msg.refreshOrder || false, msg.retry || false);
   }
-  if (msg.orderRefreshed) {
-    chrome.runtime.sendMessage({ orderRefreshed: true });
+  // if (msg.orderRefreshed) {
+  //   // sending to sidebar
+  //   chrome.runtime.sendMessage({ orderRefreshed: true });
+  // }
+  if (msg.focusMainWinHighlight) {
+    sendMessageToActiveTab({ focusMainWinHighlight: true, highlightId: msg.highlightId });
   }
   if (msg.updateActiveTab) updateActiveTab();
-  if (msg.postCard) {
-    console.log('posting card', msg);
-    postCard(msg.jwt, msg.serverUrl, msg.card, msg.deckId, msg.deckTitle);
-  }
-  if (msg.putCard) {
-    sendMesageToAllTabs({
-      putCard: true,
-      jwt: msg.jwt,
-      serverUrl: msg.serverUrl,
-      card: msg.card,
-      deckId: msg.deckId,
-    });
-  }
-  if (msg.postDeck) {
-    sendMesageToAllTabs({
-      postDeck: true,
-      jwt: msg.jwt,
-      serverUrl: msg.serverUrl,
-      card: msg.card,
-      deck: msg.deck,
-    });
-  }
-  if (msg.deleteServerCard) {
-    deleteServerCard(msg.jwt, msg.serverUrl, msg.card, msg.deckId);
-  }
 });
 
 // CHANGE LISTENER. listener might overload the browser runtime.lastError: QUOTA_BYTES_PER_ITEM quota exceeded
@@ -248,7 +249,7 @@ function checkWebsitesChanged(oldWebsites, newWebsites) {
               //   oldWebsite.highlights,
               //   newWebsite.highlights
               // );
-              sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
+              sendMessageToAllTabs({ syncNotUpToDate: true, value: true });
               checkJwtAndSync();
               return null;
             }
@@ -259,7 +260,7 @@ function checkWebsitesChanged(oldWebsites, newWebsites) {
               //   oldWebsite.deleted,
               //   newWebsite.deleted
               // );
-              sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
+              sendMessageToAllTabs({ syncNotUpToDate: true, value: true });
               checkJwtAndSync();
               return null;
             }
@@ -267,7 +268,7 @@ function checkWebsitesChanged(oldWebsites, newWebsites) {
       }
     }
   } else {
-    sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
+    sendMessageToAllTabs({ syncNotUpToDate: true, value: true });
     checkJwtAndSync();
   }
 }
@@ -276,30 +277,31 @@ function checkUserCollectionChanged(oldCollection, newCollection) {
   if (oldCollection && newCollection) {
     if (oldCollection.highlight_urls && newCollection.highlight_urls)
       if (!isEqual(oldCollection.highlight_urls.list, newCollection.highlight_urls.list)) {
-        sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
+        sendMessageToAllTabs({ syncNotUpToDate: true, value: true });
         checkJwtAndSync();
         return null;
       }
     if (oldCollection.all_tags_list && newCollection.all_tags_list)
       if (!isEqual(oldCollection.all_tags_list.list, newCollection.all_tags_list.list)) {
-        sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
+        sendMessageToAllTabs({ syncNotUpToDate: true, value: true });
         checkJwtAndSync();
         return null;
       }
   } else {
-    sendMesageToAllTabs({ syncNotUpToDate: true, value: true });
+    sendMessageToAllTabs({ syncNotUpToDate: true, value: true });
     checkJwtAndSync();
   }
 }
 
 // sending message to sidebar and popup, just use chrome.runtime.sendmessage
-function SendOutRefresh(url = null, refreshOrder = null, callback) {
+function SendOutRefresh(url = null, refreshOrder = false, retry = false) {
   chrome.storage.local.get(['lastActiveTabUrl'], function(items) {
-    const message = { refreshHighlights: true, url: url || items.lastActiveTabUrl };
-    if (refreshOrder) {
-      message.refreshOrder = true;
-    }
-    sendMesageToAllTabs(message);
+    sendMessageToActiveTab({
+      contentRefreshHighlights: true,
+      url: url || items.lastActiveTabUrl,
+      refreshOrder: refreshOrder,
+      retry: retry,
+    });
   });
 }
 
@@ -343,7 +345,7 @@ function updateActiveTab(refresh) {
     if (tabs.length === 0) return null;
     const lastActiveTabId = tabs[0].id;
     if (!tabs[0].url) return null;
-    const lastActiveTabUrl = tabs[0].url;
+    const lastActiveTabUrl = cleanedUrl(tabs[0].url);
     let lastActiveWindow;
     chrome.windows.getLastFocused(function(win) {
       // console.log('    win', win);
@@ -395,7 +397,7 @@ chrome.windows.onFocusChanged.addListener(function(windowId) {
   // console.log('    chrome.windows.onFocusChanged');
   // console.log('    windowId', windowId);
   if (windowId !== -1) {
-    sendMesageToAllTabs({ resizeSidebar: true });
+    sendMessageToActiveTab({ resizeSidebar: true });
 
     chrome.windows.get(windowId, { populate: true }, function(window) {
       // console.log(window);
@@ -413,7 +415,8 @@ chrome.windows.onFocusChanged.addListener(function(windowId) {
         ) {
           updateActiveTab();
           checkIfHighlightsExist(window.tabs[0].url, () => {
-            SendOutRefresh(window.tabs[0].url, true);
+            console.log('refresh highlights, sender: \n\n----- windows.onFocusChanged Listener');
+            SendOutRefresh(false, true);
           });
         }
       });
@@ -433,7 +436,8 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
       ) {
         updateActiveTab(true);
         checkIfHighlightsExist(changeInfo.url, () => {
-          SendOutRefresh(changeInfo.url, true);
+          console.log('refresh highlights, sender: \n\n----- tabs.onUpdated Listener');
+          SendOutRefresh(false, true);
         });
       }
     });
@@ -473,14 +477,14 @@ function makeFlashcard() {
   // might need to check if user collection valid as well
   const jwtValid = checkJwt();
   if (jwtValid) {
-    sendMesageToAllTabs({ getHighlight: true, makeCard: true });
+    sendMessageToActiveTab({ getHighlight: true, makeCard: true });
   } else alert('Please sign in');
 }
 // function makeHighlight() {
 //   // might need to check if user collection valid as well
 //   const jwtValid = checkJwt();
 //   if (jwtValid) {
-//     sendMesageToAllTabs({ getHighlight: true });
+//     sendMessageToAllTabs({ getHighlight: true });
 //   } else alert('Please sign in');
 // }
 
@@ -495,5 +499,3 @@ function changeColor(color) {
   // set this to brand color, but later user can customize, change to color variable
   chrome.storage.local.set({ color: 'rgba(248, 103, 13, 0.728)' });
 }
-
-export { sendMesageToAllTabs };

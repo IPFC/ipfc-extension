@@ -56,7 +56,11 @@
             </b-col>
           </b-row>
           <b-row class="cards-row m-0">
-            <b-col class="cards-col p-0 d-flex flex-column align-items-center" cols="12">
+            <b-col
+              :key="cardRefreshKey"
+              class="cards-col p-0 d-flex flex-column align-items-center"
+              cols="12"
+            >
               <flashcard-preview
                 v-for="card in deck.cards"
                 :id="'card-id' + card.card_id"
@@ -91,7 +95,7 @@
 // import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { ToggleButton } from 'vue-js-toggle-button';
-import { sendMesageToAllTabs } from '../utils/messaging';
+import { sendMessageToAllTabs } from '../utils/messaging';
 import { combineMineAndOthersWebsites, filterOutCardCopies } from '../utils/dataProcessing';
 import TheNavbar from '../components/TheNavbar.vue';
 import FlashcardPreview from '../components/FlashcardPreview';
@@ -132,6 +136,7 @@ export default {
       connectionMsg: 'Getting highlights',
       userCollection: { user_id: '' },
       cardPostedDeck: null,
+      cardRefreshKey: 0,
     };
   },
   computed: {
@@ -155,7 +160,7 @@ export default {
   },
   created() {
     // firefox can't set popup left and top, so need to call this immediately
-    sendMesageToAllTabs({ resizeSidebar: true });
+    sendMessageToAllTabs({ resizeSidebar: true });
     const that = this;
     chrome.windows.getCurrent(function(win) {
       chrome.runtime.sendMessage({ sidebarWinId: win.id });
@@ -179,7 +184,7 @@ export default {
         that.loadSidebar();
       }
       if (msg.orderRefreshed) {
-        // console.log('orderRefreshed');
+        console.log('orderRefreshed');
         that.loadSidebar();
       }
       if (msg.syncing) {
@@ -231,6 +236,7 @@ export default {
             refreshHighlights: true,
             refreshOrder: true,
             url: items.lastActiveTabUrl,
+            sender: 'loadMineAll, set highlights mode',
           });
         }
 
@@ -276,6 +282,7 @@ export default {
               refreshHighlights: true,
               refreshOrder: true,
               url: items.lastActiveTabUrl,
+              sender: 'loadPageAll, set highlights mode',
             });
           }
           const websites = items.websites;
@@ -289,7 +296,12 @@ export default {
           that.websites = websites;
           const website = websites[url];
           if (!website.order || !website.orderedCards || !website.orderlessCards) {
-            chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+            chrome.runtime.sendMessage({
+              refreshHighlights: true,
+              refreshOrder: true,
+              url: url,
+              sender: 'loadPAgeMine, no ordered cards',
+            });
             return null;
           } else setDecks(website, url, that);
         });
@@ -329,6 +341,7 @@ export default {
           refreshHighlights: true,
           refreshOrder: true,
           url: storage.lastActiveTabUrl,
+          sender: 'loadPageAll, set highlights mode',
         });
         // console.log('set storage view mode');
         return null;
@@ -441,11 +454,23 @@ export default {
         if (mineAndOthersWebsites[url].highlights)
           localHighlightCount = Object.keys(mineAndOthersWebsites[url].highlights).length;
       }
+      console.log(
+        'apiHighlightCount, localHighlightCount, apiCardCount, localCardCount',
+        apiHighlightCount,
+        localHighlightCount,
+        apiCardCount,
+        localCardCount
+      );
       if (apiHighlightCount !== localHighlightCount || apiCardCount !== localCardCount) {
         mineAndOthersWebsites[url] = apiWebsite;
         const combinedWebsites = combineMineAndOthersWebsites(websites, mineAndOthersWebsites);
         chrome.storage.local.set({ mineAndOthersWebsites: combinedWebsites });
-        chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+        chrome.runtime.sendMessage({
+          refreshHighlights: true,
+          refreshOrder: true,
+          url: url,
+          sender: 'loadPageAll, card/highlight count unequal',
+        });
       } else {
         if (mineAndOthersWebsites[url].orderedCards) {
           this.decks = [{ title: url, cards: mineAndOthersWebsites[url].orderedCards }];
@@ -518,6 +543,17 @@ export default {
         card: card,
         userId: this.userCollection.user_id,
       });
+      const decks = JSON.parse(JSON.stringify(this.decks));
+      for (const deck of decks) {
+        for (const origCard of deck.cards) {
+          if (origCard.card_id === card.card_id) {
+            origCard.user_id = this.userCollection.user_id;
+            this.decks = decks;
+            this.cardRefreshKey++;
+            return null;
+          }
+        }
+      }
     },
     collectAll(cards) {
       for (const card of cards) this.collectCard(card);

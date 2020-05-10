@@ -1,4 +1,4 @@
-const sendMesageToAllTabs = function(message) {
+const sendMessageToAllTabs = function(message) {
   chrome.tabs.query({}, function(tabs) {
     for (let i = 0; i < tabs.length; ++i) {
       chrome.tabs.get(tabs[i].id, function(tab) {
@@ -9,7 +9,6 @@ const sendMesageToAllTabs = function(message) {
           !tab.url.startsWith('moz-extension')
         ) {
           // console.log(tab.url);
-
           chrome.tabs.sendMessage(tabs[i].id, message, function() {
             if (chrome.runtime.lastError) {
               // console.log(chrome.runtime.lastError.message);
@@ -22,4 +21,34 @@ const sendMesageToAllTabs = function(message) {
   });
 };
 
-export { sendMesageToAllTabs };
+const sendMessageToActiveTab = function(message) {
+  chrome.storage.local.get(['lastActiveTabUrl'], items => {
+    chrome.tabs.query({}, function(tabs) {
+      for (let i = 0; i < tabs.length; ++i) {
+        chrome.tabs.get(tabs[i].id, function(tab) {
+          if (tab.url === items.lastActiveTabUrl) {
+            // console.log(tab.url);
+            chrome.tabs.sendMessage(tabs[i].id, message, function() {
+              if (chrome.runtime.lastError) {
+                // console.log(chrome.runtime.lastError.message);
+                // console.log(tab.url);
+              }
+            });
+            return null;
+          }
+        });
+      }
+    });
+  });
+
+  // chrome.storage.local.get(['lastActiveTabId'], items => {
+  //   chrome.tabs.sendMessage(items.lastActiveTabId, message, function() {
+  //     if (chrome.runtime.lastError) {
+  //       console.log(chrome.runtime.lastError.message);
+  //       // console.log(tab.url);
+  //     }
+  //   });
+  // });
+};
+
+export { sendMessageToAllTabs, sendMessageToActiveTab };

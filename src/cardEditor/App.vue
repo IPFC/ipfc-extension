@@ -382,6 +382,7 @@ export default {
           chrome.storage.sync.get(['serverUrl'], syncItems => {
             that.serverUrl = syncItems.serverUrl;
           });
+          // console.log('items.user_collection', items.user_collection);
           if (!items.user_collection) {
             window.close();
             that.cancelled = true;
@@ -493,7 +494,7 @@ export default {
     submitStep2: async function(cardInput, quill) {
       const card = await this.getQuillData(cardInput, quill);
       console.log('card saving', card);
-      chrome.runtime.sendMessage({ storeCardFromEditor: true, card: card });
+      chrome.runtime.sendMessage({ storeCard: true, card: card });
       // editing old card?
       let updatingCard = false;
       if (this.toEditCardData) {

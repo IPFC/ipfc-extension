@@ -1,19 +1,13 @@
 import {
   storeHighlightsOrder,
   storeHighlight,
-  deleteHighlight,
-  storeCard,
-  addNewCardToHighlight,
-  deleteCard,
-  // postCard,
-  putCard,
-  postDeck,
   loadThisUrlsHighlights,
-  // deleteAllPageHighlights,
   clearPageHighlights,
-  collectHighlight,
+  // deleteAllPageHighlights,
 } from './storageManager';
 import { highlight } from './highlighter.js';
+import { cleanedUrl } from '../utils/dataProcessing';
+import throttle from 'lodash/throttle';
 const uuidv4 = require('uuid/v4');
 const $ = require('jquery');
 
@@ -29,6 +23,186 @@ const $ = require('jquery');
 //   'casalemedia.com/usermatch',
 // ];
 
+chrome.runtime.onMessage.addListener(function(msg) {
+  if (msg.getHighlight) {
+    if (msg.makeCard) getHighlight(true);
+    else getHighlight();
+  }
+  if (msg.contentRefreshHighlights) {
+    // console.log('refresh highlights, msg', msg);
+    refreshHighlights(msg.url, msg.refreshOrder, msg.retry);
+  }
+  if (msg.focusMainWinHighlight) {
+    // console.log('focusMainWinHighlight msg', msg);
+    focusHighlight(msg.highlightId);
+  }
+});
+
+function updateActiveTab() {
+  chrome.runtime.sendMessage({ updateActiveTab: true });
+}
+function focusHighlight(highlightId) {
+  try {
+    $('html, body').animate(
+      {
+        scrollTop: $('#' + highlightId).offset().top - 200,
+      },
+      400
+    );
+  } catch (error) {
+    console.log('focus highlight error', error);
+  }
+  // console.log('scrollto highlight id', highlightId);
+}
+const refreshHighlights = throttle(function(url, refreshOrder, retry = false) {
+  chrome.storage.local.get(
+    ['websites', 'mineAndOthersWebsites', 'highlightsViewMode', 'lastActiveTabUrl'],
+    items => {
+      if (cleanedUrl(window.location.href) !== url) {
+        // console.log('not active url, cleanedUrl(window.location.href), url', cleanedUrl(window.location.href), url);
+        return null;
+      }
+      if (url !== items.lastActiveTabUrl) {
+        // console.log('not active tab, items.lastActiveTabUrl, url', items.lastActiveTabUrl, url);
+        return null;
+      }
+      console.log('refreshHighlights , url, refreshOrder, retry', url, refreshOrder, retry);
+
+      let websites;
+      if (items.highlightsViewMode === 'mineAndOthers') websites = items.mineAndOthersWebsites;
+      else websites = items.websites;
+      if (!websites) websites = {};
+      let website = websites[url];
+      if (!website) website = {};
+      let orderlessCardsCountBefore = 0;
+      if (website.orderlessCards) orderlessCardsCountBefore = website.orderlessCards.length;
+      console.log('orderlessCardsCountBefore', orderlessCardsCountBefore);
+
+      const refreshComplete = function(refreshOrder, retry) {
+        // if there are more orderless cards after the refresh, there was a glitch. This reloading can be a little jarring, make it optional?
+        chrome.storage.local.get(
+          ['websites', 'mineAndOthersWebsites', 'highlightsViewMode'],
+          items => {
+            let websites;
+            if (items.highlightsViewMode === 'mineAndOthers')
+              websites = items.mineAndOthersWebsites;
+            else websites = items.websites;
+            if (!websites) websites = {};
+            let website = websites[url];
+            if (!website) website = {};
+            let orderlessCardsCountAfter = 0;
+            if (website.orderlessCards) orderlessCardsCountAfter = website.orderlessCards.length;
+            console.log('orderlessCardsCountAfter', orderlessCardsCountAfter);
+            if (
+              orderlessCardsCountAfter === 0 ||
+              orderlessCardsCountAfter === orderlessCardsCountBefore
+            ) {
+              if (refreshOrder) chrome.runtime.sendMessage({ orderRefreshed: true });
+              else chrome.runtime.sendMessage({ highlightsRefreshed: true });
+            } else {
+              if (retry) {
+                location.reload();
+              } else refreshHighlights(url, refreshOrder, true);
+            }
+          }
+        );
+      };
+      clearPageHighlights(() => {
+        loadThisUrlsHighlights(url, () => {
+          if (refreshOrder) {
+            storeHighlightsOrder(url, () => {
+              refreshComplete(true, retry);
+            });
+          } else refreshComplete(false, retry);
+        });
+      });
+    }
+  );
+}, 300);
+
+function getHighlight(makeCard = false) {
+  // if (syncing) {
+  //   alert('syncing, please wait');
+  //   return null;
+  // }
+  const selection = window.getSelection();
+  const selectionString = selection.toString();
+  // console.log('getHightCalled');
+  if (selectionString) {
+    // If there is text selected
+    var container = selection.getRangeAt(0).commonAncestorContainer;
+    // Sometimes the element will only be text. Get the parent in that case
+    while (!container.innerHTML) {
+      container = container.parentNode;
+    }
+
+    chrome.storage.local.get(['color', 'user_collection'], items => {
+      // console.log(items.user_collection);
+      if (!items.user_collection) {
+        alert('please log in to IPFC');
+        return null;
+      }
+      const userId = items.user_collection.user_id;
+      const color = items.color;
+      const highlightId = 'h-id-' + uuidv4(); // need letters in front for valid html id. Can't start with numbers
+      const cardId = makeCard ? uuidv4() : null;
+      const url = cleanedUrl(window.location.href);
+      // these are things to be saved in the new card, so they need to be sent to the editor
+
+      const newCardOpenEditor = function(
+        selectionString,
+        cardId,
+        userId,
+        highlightUrl,
+        highlightId,
+        callback
+      ) {
+        chrome.runtime.sendMessage({
+          highlightSelection: true,
+          newCardData: {
+            time: new Date().getTime(),
+            selection: selectionString,
+            card_id: cardId,
+            user_id: userId,
+            highlight_url: highlightUrl,
+            highlight_id: highlightId,
+          },
+        });
+        if (callback) callback();
+      };
+      // ** change to highlight first, then open card editor,
+      // finally call store from there, then do API call, sync to db
+      // get rid of color?
+      // console.log(selection, container, cleanedUrl(window.location.href), color);
+      // console.log('new ID', highlightId);
+      storeHighlight(selection, container, url, color, userId, cardId, highlightId, () => {
+        if (makeCard) {
+          newCardOpenEditor(selectionString, cardId, userId, url, highlightId, () => {
+            highlight(selectionString, container, selection, color, highlightId, () => {
+              chrome.runtime.sendMessage({
+                refreshHighlight: true,
+                refreshOrder: true,
+                url: url,
+                sender: 'getHighlight, make card',
+              });
+              // refreshHighlights(url, true);
+            });
+          });
+        } else {
+          highlight(selectionString, container, selection, color, highlightId, () => {
+            chrome.runtime.sendMessage({
+              refreshHighlight: true,
+              url: url,
+              sender: 'getHighlight',
+            });
+            // refreshHighlights(url);
+          });
+        }
+      });
+    });
+  }
+}
+
 // A combination of characters that should (almost) never occur
 
 const HIGHLIGHT_CLASS = 'highlighter--highlighted';
@@ -36,38 +210,7 @@ const HIGHLIGHT_CLASS = 'highlighter--highlighted';
 // $(document).on('click', updateActiveTab());
 $(document).ready(updateActiveTab()); // is this needed? background.js already has similar listeners...
 $(document).ready(setupContextMenu);
-$(document).ready(refreshHighlights(window.location.href, true));
-
-chrome.runtime.onMessage.addListener(function(msg) {
-  if (msg.getHighlight) {
-    if (msg.makeCard) getHighlight(true);
-    else getHighlight();
-  }
-  if (msg.deleteHighlight) {
-    deleteHighlight(msg.url, msg.id);
-  }
-  if (msg.deleteCard) {
-    deleteCard(msg.url, msg.card);
-  }
-  if (msg.storeCard) {
-    storeCard(msg.card);
-  }
-  if (msg.putCard) {
-    putCard(msg.jwt, msg.serverUrl, msg.card, msg.deckId);
-  }
-  if (msg.postDeck) {
-    postDeck(msg.jwt, msg.serverUrl, msg.card, msg.deck);
-  }
-  if (msg.refreshHighlights) {
-    // console.log('refresh highlights, msg.url', msg.url);
-    if (msg.refreshOrder) refreshHighlights(msg.url, true);
-    else refreshHighlights(msg.url, false);
-  }
-  if (msg.focusMainWinHighlight) {
-    // console.log('focusMainWinHighlight msg', msg);
-    focusHighlight(msg.highlightId);
-  }
-});
+$(document).ready(refreshHighlights(cleanedUrl(window.location.href), true));
 
 function setupContextMenu() {
   let clickedHighlightId;
@@ -110,7 +253,7 @@ function setupContextMenu() {
         {
           highlightClicked: true,
           highlightId: clickedHighlightId,
-          highlightUrl: window.location.href,
+          highlightUrl: cleanedUrl(window.location.href),
         },
         function(response) {
           // console.log(response, 'response');
@@ -153,23 +296,49 @@ function setupContextMenu() {
         $(document).on('click', repositionAndShowLeftContextMenu);
       }
       if ($(e.target).is('#delete-highlight')) {
-        deleteHighlight(window.location.href, clickedHighlightId, false);
+        chrome.runtime.sendMessage({
+          deleteHighlight: true,
+          url: cleanedUrl(window.location.href),
+          id: clickedHighlightId,
+          thenDeleteCard: false,
+        });
         afterMenuItemClick();
       }
       if ($(e.target).is('#delete-highlight-and-card')) {
-        deleteHighlight(window.location.href, clickedHighlightId, true);
+        chrome.runtime.sendMessage({
+          deleteHighlight: true,
+          url: cleanedUrl(window.location.href),
+          id: clickedHighlightId,
+          thenDeleteCard: true,
+        });
         afterMenuItemClick();
       }
       if ($(e.target).is('#add-card-to-highlight')) {
-        addNewCardToHighlight(clickedHighlightId, window.location.href, userId);
+        chrome.runtime.sendMessage({
+          addNewCardToHighlight: true,
+          url: cleanedUrl(window.location.href),
+          highlightId: clickedHighlightId,
+          userId: userId,
+        });
         afterMenuItemClick();
       }
       if ($(e.target).is('#collect-highlight')) {
-        collectHighlight(highlight, window.location.href, userId);
+        chrome.runtime.sendMessage({
+          collectHighlight: true,
+          highlight: highlight,
+          url: cleanedUrl(window.location.href),
+          userId: userId,
+        });
         afterMenuItemClick();
       }
       if ($(e.target).is('#collect-highlight-and-card')) {
-        collectHighlight(highlight, window.location.href, userId, highlight.card_id);
+        chrome.runtime.sendMessage({
+          collectHighlight: true,
+          highlight: highlight,
+          url: cleanedUrl(window.location.href),
+          userId: userId,
+          cardId: highlight.card_id,
+        });
         afterMenuItemClick();
       } else if (
         !$(e.target)
@@ -191,172 +360,4 @@ function setupContextMenu() {
 
   // $(document).off('click');
   $(document).on('click', repositionAndShowLeftContextMenu);
-}
-function updateActiveTab() {
-  chrome.runtime.sendMessage({ updateActiveTab: true });
-}
-function focusHighlight(highlightId) {
-  try {
-    $('html, body').animate(
-      {
-        scrollTop: $('#' + highlightId).offset().top - 200,
-      },
-      400
-    );
-  } catch (error) {
-    console.log('focus highlight error', error);
-  }
-  // console.log('scrollto highlight id', highlightId);
-}
-function refreshHighlights(url, refreshOrder) {
-  // console.log('refreshHighlights , url', url);
-  chrome.storage.local.get(
-    ['websites', 'mineAndOthersWebsites', 'highlightsViewMode', 'lastActiveTabUrl'],
-    items => {
-      if (window.location.href !== url) return null;
-      if (url !== items.lastActiveTabUrl) {
-        // console.log('not active tab');
-        return null;
-      }
-      let websites;
-      if (items.highlightsViewMode === 'mineAndOthers') websites = items.mineAndOthersWebsites;
-      else websites = items.websites;
-      if (!websites) websites = {};
-      let website = websites[url];
-      if (!website) website = {};
-      let orderlessCardsCountBefore = 0;
-      if (website.orderlessCards) orderlessCardsCountBefore = website.orderlessCards.length;
-      // console.log('orderlessCardsCountBefore', orderlessCardsCountBefore);
-
-      const refreshComplete = function(refreshOrder) {
-        // if there are more orderless cards after the refresh, there was a glitch. This reloading can be a little jarring, make it optional?
-        chrome.storage.local.get(
-          ['websites', 'mineAndOthersWebsites', 'highlightsViewMode'],
-          items => {
-            let websites;
-            if (items.highlightsViewMode === 'mineAndOthers')
-              websites = items.mineAndOthersWebsites;
-            else websites = items.websites;
-            if (!websites) websites = {};
-            let website = websites[url];
-            if (!website) website = {};
-            let orderlessCardsCountAfter = 0;
-            if (website.orderlessCards) orderlessCardsCountAfter = website.orderlessCards.length;
-            // console.log('orderlessCardsCountAfter', orderlessCardsCountAfter);
-            if (
-              orderlessCardsCountAfter === 0 ||
-              orderlessCardsCountAfter === orderlessCardsCountBefore
-            ) {
-              if (refreshOrder) chrome.runtime.sendMessage({ orderRefreshed: true });
-              else chrome.runtime.sendMessage({ highlightsRefreshed: true });
-            } else {
-              location.reload();
-            }
-          }
-        );
-      };
-      if (refreshOrder) {
-        clearPageHighlights(() => {
-          // console.log('refresh order, url', url);
-          loadThisUrlsHighlights(url, () => {
-            // console.log('storeHighlightsOrder');
-            storeHighlightsOrder(url, () => {
-              refreshComplete(true);
-            });
-          });
-        });
-      } else {
-        clearPageHighlights(() => {
-          loadThisUrlsHighlights(url, () => {
-            refreshComplete();
-          });
-        });
-      }
-    }
-  );
-}
-
-function getHighlight(makeCard = false) {
-  // if (syncing) {
-  //   alert('syncing, please wait');
-  //   return null;
-  // }
-  const selection = window.getSelection();
-  const selectionString = selection.toString();
-  // console.log('getHightCalled');
-  if (selectionString) {
-    // If there is text selected
-    var container = selection.getRangeAt(0).commonAncestorContainer;
-    // Sometimes the element will only be text. Get the parent in that case
-    while (!container.innerHTML) {
-      container = container.parentNode;
-    }
-
-    chrome.storage.local.get(['color', 'user_collection'], items => {
-      // console.log(items.user_collection);
-      if (!items.user_collection) {
-        alert('please log in to IPFC');
-        return null;
-      }
-      const userId = items.user_collection.user_id;
-      const color = items.color;
-      const highlightId = 'h-id-' + uuidv4(); // need letters in front for valid html id. Can't start with numbers
-      const cardId = makeCard ? uuidv4() : null;
-      // these are things to be saved in the new card, so they need to be sent to the editor
-
-      const newCardOpenEditor = function(
-        selectionString,
-        cardId,
-        userId,
-        highlightUrl,
-        highlightId,
-        callback
-      ) {
-        chrome.runtime.sendMessage({
-          highlightSelection: true,
-          newCardData: {
-            time: new Date().getTime(),
-            selection: selectionString,
-            card_id: cardId,
-            user_id: userId,
-            highlight_url: highlightUrl,
-            highlight_id: highlightId,
-          },
-        });
-        if (callback) callback();
-      };
-      // ** change to highlight first, then open card editor,
-      // finally call store from there, then do API call, sync to db
-      // get rid of color?
-      // console.log(selection, container, window.location.href, color);
-      // console.log('new ID', highlightId);
-      storeHighlight(
-        selection,
-        container,
-        window.location.href,
-        color,
-        userId,
-        cardId,
-        highlightId,
-        () => {
-          if (makeCard) {
-            newCardOpenEditor(
-              selectionString,
-              cardId,
-              userId,
-              window.location.href,
-              highlightId,
-              () => {
-                highlight(selectionString, container, selection, color, highlightId, () => {
-                  storeHighlightsOrder(window.location.href);
-                });
-              }
-            );
-          } else {
-            highlight(selectionString, container, selection, color, highlightId);
-          }
-        }
-      );
-    });
-  }
 }

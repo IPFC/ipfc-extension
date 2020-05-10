@@ -11,7 +11,7 @@ const callAPI = function(url, headers, method, data = null, callback = null) {
   if (data !== null) {
     options.data = data;
   }
-  // console.log('options', options);
+  console.log('options', options);
   axios(options)
     .then(response => {
       data = response.data;
@@ -72,7 +72,8 @@ function getMeta(serverUrl, token) {
   callAPI(getMetaURL, getMetaHeaders, 'GET', null, getMetaCallback);
 }
 const signup = function(email, password) {
-  chrome.storage.local.get(['serverUrl'], items => {
+  chrome.storage.sync.get(['serverUrl'], items => {
+    const signupUrl = items.serverUrl + '/sign_up';
     const pinataSignupEndpoint = 'https://api.pinata.cloud/users/signUpNewUser';
     const params = new URLSearchParams();
     params.append('username', email);
@@ -82,7 +83,6 @@ const signup = function(email, password) {
       .then(response => {
         const data = response.data;
         console.log('APICall data', data);
-        const signupUrl = items.serverUrl + '/sign_up';
         const signUpData = {
           email: email,
           password: password,

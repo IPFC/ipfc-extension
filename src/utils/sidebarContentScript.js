@@ -1,3 +1,4 @@
+import { cleanedUrl } from '../utils/dataProcessing';
 window.addEventListener('focus', resize());
 
 chrome.runtime.onMessage.addListener(msg => {
@@ -6,9 +7,9 @@ chrome.runtime.onMessage.addListener(msg => {
 
 function resize() {
   chrome.storage.local.get(['lastActiveTabUrl'], items => {
-    if (window.location.href === items.lastActiveTabUrl) {
+    if (cleanedUrl(window.location.href) === items.lastActiveTabUrl) {
       // console.log('resize called');
-      // console.log('window.location.href', window.location.href);
+      // console.log('cleanedUrl(window.location.href)', cleanedUrl(window.location.href));
       const updateData = {
         mainWinLeft: window.screenX,
         mainWinWidth: window.outerWidth,

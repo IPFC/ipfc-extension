@@ -100,6 +100,7 @@ export default {
           refreshHighlights: true,
           refreshOrder: true,
           url: items.lastActiveTabUrl,
+          sender: 'selectView',
         });
         chrome.storage.local.set({ highlightsViewMode: view });
       });
@@ -136,7 +137,7 @@ export default {
         .catch(function(err) {
           console.log(err);
           throw new Error(err);
-          // sendMesageToAllTabs({ syncing: true, value: false });
+          // sendMessageToAllTabs({ syncing: true, value: false });
         });
       return result;
     },
@@ -174,6 +175,7 @@ export default {
           refreshHighlights: true,
           refreshOrder: true,
           url: storage.lastActiveTabUrl,
+          sender: 'loadPageAll, store highlights mode',
         });
         chrome.storage.local.set({ highlightsViewMode: 'mineAndOthers' });
         return null;
@@ -220,7 +222,12 @@ export default {
       if (apiHighlightCount !== localHighlightCount || apiCardCount !== localCardCount) {
         mineAndOthersWebsites[url] = apiWebsite;
         chrome.storage.local.set({ mineAndOthersWebsites: mineAndOthersWebsites });
-        chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+        chrome.runtime.sendMessage({
+          refreshHighlights: true,
+          refreshOrder: true,
+          url: url,
+          sender: 'loadPageAll highlights/card count doesnt match',
+        });
       } else this.loadingOthers = false;
     },
   },

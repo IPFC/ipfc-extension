@@ -1,6 +1,6 @@
 import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
-import { sendMesageToAllTabs } from '../background';
+import { sendMessageToAllTabs } from '../utils/messaging';
 const axios = require('axios');
 
 const syncStatus = {
@@ -135,7 +135,7 @@ const cloudSync = async function(skipEqualityCheck) {
 };
 function sendOutMessage(msg) {
   // because the popup also needs to hear the message, so sendMessageToAllTabs won't reach it
-  sendMesageToAllTabs(msg);
+  sendMessageToAllTabs(msg);
   chrome.runtime.sendMessage(msg);
 }
 function timestamp() {
@@ -151,7 +151,7 @@ function timestamp() {
 //       if (cardToCheck.card_id === cardId) card = cardToCheck;
 //       break;
 //     }
-//     sendMesageToAllTabs({
+//     sendMessageToAllTabs({
 //       deleteCard: true,
 //       card: card,
 //       url: url,

@@ -1,8 +1,12 @@
 import { isEmpty, sortBy } from 'lodash';
 import { addHighlightError } from './errorManager';
 import { highlight } from './highlighter';
-import { filterOutCardCopies, combineMineAndOthersWebsites } from '../utils/dataProcessing';
-import { sendMesageToAllTabs } from '../utils/messaging';
+import {
+  filterOutCardCopies,
+  combineMineAndOthersWebsites,
+  findHiddenHighlight,
+} from '../utils/dataProcessing';
+// import { sendMessageToAllTabs } from '../utils/messaging';
 
 const axios = require('axios');
 const uuidv4 = require('uuid/v4');
@@ -15,20 +19,26 @@ const clearPageHighlights = callback => {
   if (callback) callback();
 };
 
-const getCardsInOrder = function(rawCards, order, userId, mineAndOthers = false) {
-  const cards = mineAndOthers ? filterOutCardCopies(rawCards, userId) : rawCards;
+const getCardsInOrder = function(rawCards, order, userId, mineAndOthersWebsites) {
+  const cards = filterOutCardCopies(rawCards, userId);
   const orderedCards = [];
   const orderlessCards = [];
+
+  for (const card of cards) {
+    if (!order.includes(card.highlight_id)) {
+      // try to find cards matching highlights that aren't displayed. look for highlights with the same anchors
+      const hiddenHighlight = findHiddenHighlight(card, mineAndOthersWebsites, order);
+      if (hiddenHighlight) {
+        console.log('hiddenHighlight', hiddenHighlight);
+        card.highlight_id = hiddenHighlight.highlight_id;
+      } else orderlessCards.push(card);
+    }
+  }
   for (const highlightId of order) {
     for (const card of cards) {
       if (card.highlight_id === highlightId) {
         orderedCards.push(card);
       }
-    }
-  }
-  for (const card of cards) {
-    if (!order.includes(card.highlight_id)) {
-      orderlessCards.push(card);
     }
   }
   return {
@@ -70,8 +80,9 @@ const storeHighlightsOrder = function(url, callback) {
           websites[url].cards,
           websites[url].order,
           items.user_collection.user_id,
-          items.highlightsViewMode === 'mineAndOthers'
+          items.mineAndOthersWebsites
         );
+        console.log('sortedCArds', sortedCards);
         websites[url].orderedCards = sortedCards.orderedCards;
         websites[url].orderlessCards = sortedCards.orderlessCards;
         if (items.highlightsViewMode === 'mine') {
@@ -144,10 +155,10 @@ const storeHighlight = function(
     edited: new Date().getTime(),
     created: new Date().getTime(),
   };
-  addHighlightToLocalStorage(newHighlight, url, callback);
+  addHighlightToLocalStorage(newHighlight, url, false, callback);
 };
 
-function addHighlightToLocalStorage(highlight, url, callback) {
+function addHighlightToLocalStorage(highlight, url, refreshHighlights = false, callback) {
   chrome.storage.local.get(['websites', 'user_collection', 'mineAndOthersWebsites'], items => {
     let websites = items.websites;
     let mineAndOthersWebsites = items.mineAndOthersWebsites;
@@ -192,7 +203,13 @@ function addHighlightToLocalStorage(highlight, url, callback) {
         if (callback) callback();
       }
     );
-    chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+    if (refreshHighlights)
+      chrome.runtime.sendMessage({
+        refreshHighlights: true,
+        refreshOrder: true,
+        url: url,
+        sender: 'addHighlightToLocalStorage',
+      });
   });
 }
 
@@ -221,7 +238,7 @@ const collectHighlight = function(
     created: new Date().getTime(),
   };
   if (cardId) collectCard(cardId, url, userId, updatedHighlight.highlight_id);
-  addHighlightToLocalStorage(updatedHighlight, url, callback);
+  addHighlightToLocalStorage(updatedHighlight, url, true, callback);
 };
 const collectCardAndHighlight = function(card, userId) {
   console.log('collectCardAndHighlight', card, userId);
@@ -251,6 +268,7 @@ const collectCardAndHighlight = function(card, userId) {
         card.highlight_id = highlightId;
         card.is_copy_of = card.card_id;
         card.card_id = cardId;
+        // use store card not collect, because highlight ID will be diff
         storeCard(card, () => {
           postCollectedCard(
             items.lastUsedDeck,
@@ -298,15 +316,7 @@ function collectCard(cardId, url, userId, highlightId) {
   );
 }
 function postCollectedCard(lastUsedDeck, url, decksMeta, cardToPost, jwt) {
-  console.log(
-    'postCollectedCard',
-    postCollectedCard,
-    lastUsedDeck,
-    url,
-    decksMeta,
-    cardToPost,
-    jwt
-  );
+  console.log('postCollectedCard', lastUsedDeck, url, decksMeta, cardToPost, jwt);
   const formatTitle = function(title) {
     let frontTrunc;
     if (!title.includes('http://') && !title.includes('https://')) frontTrunc = title;
@@ -430,23 +440,16 @@ const storeCard = function(card, callback) {
                 });
               }
         }
-        const message = {
+        chrome.runtime.sendMessage({
           refreshHighlights: true,
           refreshOrder: true,
+          retry: true,
           url: url,
-        };
-        sendMesageToAllTabs(message);
+          sender: 'storeCard',
+        });
         if (callback) callback();
       }
     );
-  });
-};
-const addNewCardToHighlight = function(highlightId, url, userId) {
-  chrome.runtime.sendMessage({
-    addNewCardToHighlight: true,
-    highlightId: highlightId,
-    url: url,
-    userId: userId,
   });
 };
 const postCard = async function(jwt, serverUrl, card, deckId, deckTitle) {
@@ -644,7 +647,7 @@ const loadThisUrlsHighlights = function(url, callback) {
               ? checkHighlightsForCopies(websites[url].highlights, items.user_collection.user_id)
               : websites[url].highlights;
           // console.log('checkHighlightsForCopies after', Object.keys(highlights));
-          // console.log('loadThisUrlsHighlights - loading highlights', highlights);
+          console.log('loadThisUrlsHighlights - loading highlights', highlights);
           for (const key in highlights) {
             if (key === Object.keys(highlights)[Object.keys(highlights).length - 1]) {
               if (callback) loadHighlight(highlights[key], false, callback);
@@ -764,7 +767,12 @@ const deleteHighlight = function(url, id, thenDeleteCard = true) {
             }
           }
         }
-        chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+        chrome.runtime.sendMessage({
+          refreshHighlights: true,
+          refreshOrder: true,
+          url: url,
+          sender: 'deleteHighlight',
+        });
       });
     } else if (thenDeleteCard) {
       if (!isEmpty(websites[url].cards)) {
@@ -776,7 +784,12 @@ const deleteHighlight = function(url, id, thenDeleteCard = true) {
           }
         }
       }
-      chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+      chrome.runtime.sendMessage({
+        refreshHighlights: true,
+        refreshOrder: true,
+        url: url,
+        sender: 'deleteHighlight',
+      });
     }
   });
 };
@@ -807,13 +820,23 @@ const deleteCard = function(url, card, thenDeleteHighlight = true) {
         () => {
           if (thenDeleteHighlight) deleteHighlight(url, card.highlight_id, false);
           else {
-            chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+            chrome.runtime.sendMessage({
+              refreshHighlights: true,
+              refreshOrder: true,
+              url: url,
+              sender: 'deleteCard',
+            });
           }
         }
       );
     } else if (thenDeleteHighlight) deleteHighlight(url, card.highlight_id);
     else {
-      chrome.runtime.sendMessage({ refreshHighlights: true, refreshOrder: true, url: url });
+      chrome.runtime.sendMessage({
+        refreshHighlights: true,
+        refreshOrder: true,
+        url: url,
+        sender: 'deleteCard',
+      });
     }
   });
 };
@@ -824,7 +847,6 @@ export {
   collectHighlight,
   deleteHighlight,
   storeCard,
-  addNewCardToHighlight,
   collectCardAndHighlight,
   deleteCard,
   postCard,
