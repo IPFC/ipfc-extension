@@ -49,18 +49,34 @@
               <p class="title m-0" @click="openLink(deck.title)">
                 {{ formatTitle(deck.title) }}
               </p>
-              <p v-if="deck.cards" class="text-muted m-0">
-                <small> {{ deck.cards.length }} card{{ cardOrCards(deck.cards.length) }} </small>
-              </p>
+              <b-row class="px-3">
+                <p v-if="deck.cards" class="text-muted m-0">
+                  <small> {{ deck.cards.length }} card{{ cardOrCards(deck.cards.length) }} </small>
+                </p>
+                <p
+                  v-if="selectedTab === 'mine-all' && showSitesCards !== deck.title"
+                  class="text-muted m-0 ml-auto show-cards-btn"
+                  @click="showSitesCards = deck.title"
+                >
+                  <small> show cards</small>
+                </p>
+                <p
+                  v-if="selectedTab === 'mine-all' && showSitesCards === deck.title"
+                  class="text-muted m-0 ml-auto show-cards-btn"
+                  @click="showSitesCards = ''"
+                >
+                  <small> hide cards</small>
+                </p>
+              </b-row>
               <div class="underline"></div>
             </b-col>
           </b-row>
-          <b-row class="cards-row m-0">
-            <b-col
-              :key="cardRefreshKey"
-              class="cards-col p-0 d-flex flex-column align-items-center"
-              cols="12"
-            >
+          <b-row
+            v-if="selectedTab !== 'mine-all' ? true : showSitesCards === deck.title ? true : false"
+            :key="cardRefreshKey"
+            class="cards-row m-0"
+          >
+            <b-col class="cards-col p-0 d-flex flex-column align-items-center" cols="12">
               <flashcard-preview
                 v-for="card in deck.cards"
                 :id="'card-id' + card.card_id"
@@ -96,7 +112,11 @@
 import { isEmpty } from 'lodash';
 import { ToggleButton } from 'vue-js-toggle-button';
 import { sendMessageToAllTabs } from '../utils/messaging';
-import { combineMineAndOthersWebsites, filterOutCardCopies } from '../utils/dataProcessing';
+import {
+  combineMineAndOthersWebsites,
+  filterOutCardCopies,
+  cleanedUrl,
+} from '../utils/dataProcessing';
 import TheNavbar from '../components/TheNavbar.vue';
 import FlashcardPreview from '../components/FlashcardPreview';
 const axios = require('axios');
@@ -132,6 +152,7 @@ export default {
       clickedCardId: '',
       jwt: '',
       serverUrl: '',
+      showSitesCards: '',
       showCardBacks: false,
       connectionMsg: 'Getting highlights',
       userCollection: { user_id: '' },
@@ -175,7 +196,7 @@ export default {
       }
       // scroll to function
       if (msg.sidebarScrollToCard) {
-        // console.log('scrollto recieved, msg', msg);
+        console.log('scrollto recieved, msg', msg);
         VueScrollTo.scrollTo('#card-id' + msg.cardId, 300, ScrollToOptions);
         that.clickedCardId = msg.cardId;
       }
@@ -659,7 +680,7 @@ export default {
     },
     openLink(url) {
       // console.log('url to open', url);
-      if (this.lastActiveTabUrl !== url) {
+      if (url !== 'Cards without a highlight' && this.lastActiveTabUrl !== cleanedUrl(url)) {
         chrome.tabs.create({ url: url });
         this.lastActiveTabUrl = url;
         chrome.storage.local.set({ lastActiveTabUrl: url });
@@ -692,7 +713,9 @@ export default {
   color: #f8690d;
   cursor: pointer;
 }
-
+.show-cards-btn {
+  cursor: pointer;
+}
 .flashcard-outer {
   width: 90%;
 }

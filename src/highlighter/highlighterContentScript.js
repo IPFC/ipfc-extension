@@ -30,10 +30,11 @@ chrome.runtime.onMessage.addListener(function(msg) {
   }
   if (msg.contentRefreshHighlights) {
     // console.log('refresh highlights, msg', msg);
+    console.log('refresh highlights, sender', msg.sender);
     refreshHighlights(msg.url, msg.refreshOrder, msg.retry);
   }
   if (msg.focusMainWinHighlight) {
-    // console.log('focusMainWinHighlight msg', msg);
+    console.log('focusMainWinHighlight msg', msg);
     focusHighlight(msg.highlightId);
   }
 });
@@ -56,16 +57,35 @@ function focusHighlight(highlightId) {
 }
 const refreshHighlights = throttle(function(url, refreshOrder, retry = false) {
   chrome.storage.local.get(
-    ['websites', 'mineAndOthersWebsites', 'highlightsViewMode', 'lastActiveTabUrl'],
+    [
+      'websites',
+      'mineAndOthersWebsites',
+      'highlightsViewMode',
+      'lastActiveTabUrl',
+      'refreshRetryCounter',
+    ],
     items => {
-      if (cleanedUrl(window.location.href) !== url) {
-        // console.log('not active url, cleanedUrl(window.location.href), url', cleanedUrl(window.location.href), url);
+      // if (cleanedUrl(window.location.href) !== url) {
+      //   console.log(
+      //     'not active url, cleanedUrl(window.location.href), url',
+      //     cleanedUrl(window.location.href),
+      //     url
+      //   );
+      //   return null;
+      // }
+      // if (url !== items.lastActiveTabUrl) {
+      //   console.log('not active tab, items.lastActiveTabUrl, url', items.lastActiveTabUrl, url);
+      //   return null;
+      // }
+      if (cleanedUrl(window.location.href) !== items.lastActiveTabUrl) {
+        // console.log(
+        //   'not active tab, cleanedUrl(window.location.href), items.lastActiveTabUrl',
+        //   url,
+        //   items.lastActiveTabUrl
+        // );
         return null;
       }
-      if (url !== items.lastActiveTabUrl) {
-        // console.log('not active tab, items.lastActiveTabUrl, url', items.lastActiveTabUrl, url);
-        return null;
-      }
+      if (!url) url = cleanedUrl(window.location.href);
       console.log('refreshHighlights , url, refreshOrder, retry', url, refreshOrder, retry);
 
       let websites;
@@ -100,8 +120,13 @@ const refreshHighlights = throttle(function(url, refreshOrder, retry = false) {
               if (refreshOrder) chrome.runtime.sendMessage({ orderRefreshed: true });
               else chrome.runtime.sendMessage({ highlightsRefreshed: true });
             } else {
-              if (retry) {
+              if (retry && items.refreshRetryCounter === 0) {
+                chrome.storage.local.set({ refreshRetryCounter: 1 });
                 location.reload();
+              } else if (retry && items.refreshRetryCounter === 1) {
+                chrome.storage.local.set({ refreshRetryCounter: 0 });
+                if (refreshOrder) chrome.runtime.sendMessage({ orderRefreshed: true });
+                else chrome.runtime.sendMessage({ highlightsRefreshed: true });
               } else refreshHighlights(url, refreshOrder, true);
             }
           }

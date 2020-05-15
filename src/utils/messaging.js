@@ -51,4 +51,13 @@ const sendMessageToActiveTab = function(message) {
   // });
 };
 
-export { sendMessageToAllTabs, sendMessageToActiveTab };
+// sending message to sidebar and popup, just use chrome.runtime.sendmessage
+function SendOutRefresh(url = null, refreshOrder = false, sender = null, retry = false) {
+  sendMessageToAllTabs({
+    contentRefreshHighlights: true,
+    refreshOrder: refreshOrder,
+    sender: sender,
+    retry: retry,
+  });
+}
+export { sendMessageToAllTabs, sendMessageToActiveTab, SendOutRefresh };

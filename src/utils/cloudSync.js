@@ -11,6 +11,8 @@ const syncStatus = {
 
 const cloudSync = async function(skipEqualityCheck) {
   console.log('    asyncCloudSync called, syncing status', syncStatus.syncing, timestamp());
+  console.log('window.location.href', window.location.href);
+
   if (syncStatus.syncing) {
     console.log('    syncing blocked by concurrent sync', timestamp());
     syncStatus.syncingBlockedBySyncing = true;

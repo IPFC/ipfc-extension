@@ -28,15 +28,22 @@ function resize() {
 var oldX = window.screenX;
 var oldY = window.screenY;
 var oldWidth = window.outerWidth;
+var oldHeight = window.outerHeight;
 
 // https://stackoverflow.com/questions/4319487/detecting-if-the-browser-window-is-moved-with-javascript
 setInterval(function() {
-  if (oldX !== window.screenX || oldY !== window.screenY || oldWidth !== window.outerWidth) {
+  if (
+    oldX !== window.screenX ||
+    oldY !== window.screenY ||
+    oldWidth !== window.outerWidth ||
+    oldHeight !== window.outerHeight
+  ) {
     resize();
   }
   oldX = window.screenX;
   oldY = window.screenY;
   oldWidth = window.outerWidth;
+  oldHeight = window.outerHeight;
 }, 500);
 
 // window.addEventListener('resize', function() {

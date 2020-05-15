@@ -159,16 +159,20 @@ const filterOutCardCopies = function(rawCards, userId) {
   return cards;
 };
 const findHiddenHighlight = function(card, websites, order) {
+  if (!card.highlight_id || !websites) return null;
   const id = card.highlight_id;
   const highlights = websites[card.highlight_url].highlights;
   const original = pickBy(highlights, highlight => {
     return highlight.highlight_id === id;
   });
-  if (original) {
+  if (!isEmpty(original)) {
     for (const highlight in highlights) {
-      if (highlights[highlight].string === original[Object.keys(original)[0]].string) {
-        if (highlights[highlight] !== original[Object.keys(original)[0]])
-          if (order.includes(highlights[highlight].highlight_id)) return highlights[highlight];
+      if (!isEmpty(highlights[highlight])) {
+        // console.log(highlights[highlight], original);
+        if (highlights[highlight].string === original[Object.keys(original)[0]].string) {
+          if (highlights[highlight] !== original[Object.keys(original)[0]])
+            if (order.includes(highlights[highlight].highlight_id)) return highlights[highlight];
+        }
       }
     }
   }

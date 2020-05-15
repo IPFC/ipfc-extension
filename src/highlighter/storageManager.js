@@ -6,7 +6,10 @@ import {
   combineMineAndOthersWebsites,
   findHiddenHighlight,
 } from '../utils/dataProcessing';
-// import { sendMessageToAllTabs } from '../utils/messaging';
+import {
+  // sendMessageToAllTabs,
+  SendOutRefresh,
+} from '../utils/messaging';
 
 const axios = require('axios');
 const uuidv4 = require('uuid/v4');
@@ -19,7 +22,7 @@ const clearPageHighlights = callback => {
   if (callback) callback();
 };
 
-const getCardsInOrder = function(rawCards, order, userId, mineAndOthersWebsites) {
+const getCardsInOrder = function(rawCards, order, userId, websites) {
   const cards = filterOutCardCopies(rawCards, userId);
   const orderedCards = [];
   const orderlessCards = [];
@@ -27,7 +30,7 @@ const getCardsInOrder = function(rawCards, order, userId, mineAndOthersWebsites)
   for (const card of cards) {
     if (!order.includes(card.highlight_id)) {
       // try to find cards matching highlights that aren't displayed. look for highlights with the same anchors
-      const hiddenHighlight = findHiddenHighlight(card, mineAndOthersWebsites, order);
+      const hiddenHighlight = findHiddenHighlight(card, websites, order);
       if (hiddenHighlight) {
         console.log('hiddenHighlight', hiddenHighlight);
         card.highlight_id = hiddenHighlight.highlight_id;
@@ -80,7 +83,7 @@ const storeHighlightsOrder = function(url, callback) {
           websites[url].cards,
           websites[url].order,
           items.user_collection.user_id,
-          items.mineAndOthersWebsites
+          websites
         );
         console.log('sortedCArds', sortedCards);
         websites[url].orderedCards = sortedCards.orderedCards;
@@ -203,13 +206,15 @@ function addHighlightToLocalStorage(highlight, url, refreshHighlights = false, c
         if (callback) callback();
       }
     );
-    if (refreshHighlights)
+    if (refreshHighlights) {
+      SendOutRefresh(url, true, 'addHighlightToLocalStorage', false);
       chrome.runtime.sendMessage({
         refreshHighlights: true,
         refreshOrder: true,
         url: url,
         sender: 'addHighlightToLocalStorage',
       });
+    }
   });
 }
 
@@ -440,6 +445,7 @@ const storeCard = function(card, callback) {
                 });
               }
         }
+        SendOutRefresh(url, true, 'storeCard', false);
         chrome.runtime.sendMessage({
           refreshHighlights: true,
           refreshOrder: true,
@@ -722,6 +728,7 @@ const deleteAllPageHighlights = function(url) {
   });
 };
 const deleteHighlight = function(url, id, thenDeleteCard = true) {
+  console.log('deleteHighlight, url, id, thenDeleteCard', url, id, thenDeleteCard);
   chrome.storage.local.get(['websites', 'mineAndOthersWebsites', 'user_collection'], items => {
     if (!items.user_collection) {
       alert('please log in to IPFC');
@@ -767,6 +774,7 @@ const deleteHighlight = function(url, id, thenDeleteCard = true) {
             }
           }
         }
+        SendOutRefresh(url, true, 'deleteHighlight', false);
         chrome.runtime.sendMessage({
           refreshHighlights: true,
           refreshOrder: true,
@@ -778,12 +786,14 @@ const deleteHighlight = function(url, id, thenDeleteCard = true) {
       if (!isEmpty(websites[url].cards)) {
         const cards = websites[url].cards;
         for (const card of cards) {
-          if (card.highlight_id === id) {
+          if (card.highlight_id === id && card.userId === userCollection.user_id) {
             deleteCard(url, card, false);
             break;
           }
         }
       }
+      SendOutRefresh(url, true, 'deleteHighlight', false);
+
       chrome.runtime.sendMessage({
         refreshHighlights: true,
         refreshOrder: true,
@@ -820,6 +830,7 @@ const deleteCard = function(url, card, thenDeleteHighlight = true) {
         () => {
           if (thenDeleteHighlight) deleteHighlight(url, card.highlight_id, false);
           else {
+            SendOutRefresh(url, true, 'deleteCard', false);
             chrome.runtime.sendMessage({
               refreshHighlights: true,
               refreshOrder: true,
@@ -831,6 +842,7 @@ const deleteCard = function(url, card, thenDeleteHighlight = true) {
       );
     } else if (thenDeleteHighlight) deleteHighlight(url, card.highlight_id);
     else {
+      SendOutRefresh(url, true, 'deleteCard', false);
       chrome.runtime.sendMessage({
         refreshHighlights: true,
         refreshOrder: true,

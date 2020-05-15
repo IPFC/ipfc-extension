@@ -2,7 +2,7 @@
 import { isEqual } from 'lodash/core';
 import { isEmpty } from 'lodash';
 import { cloudSync, syncStatus } from './utils/cloudSync';
-import { sendMessageToAllTabs, sendMessageToActiveTab } from './utils/messaging';
+import { sendMessageToAllTabs, sendMessageToActiveTab, SendOutRefresh } from './utils/messaging';
 import { login, signup } from './utils/loginLogout';
 import { createSidebar } from './utils/sidebarContentScript';
 import {
@@ -107,10 +107,21 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       }
       // console.log('sending response, highlight', highlight);
       sendResponse({ highlight: highlight, userId: items.user_collection.user_id });
-      const associatedCards = items.mineAndOthersWebsites[msg.highlightUrl].cards;
+      let associatedCards;
+      try {
+        associatedCards = items.mineAndOthersWebsites[msg.highlightUrl].cards;
+      } catch {
+        try {
+          associatedCards = items.websites[msg.highlightUrl].cards;
+        } catch {
+          console.log('no cards found');
+          return null;
+        }
+      }
       for (const card of associatedCards) {
         if (card.highlight_id === msg.highlightId) {
           // will this message reach sidebar in both chrome and firefox?
+          console.log('sidebarScrollToCard, card, msg', card, msg);
           chrome.runtime.sendMessage({ sidebarScrollToCard: true, cardId: card.card_id });
         }
       }
@@ -124,7 +135,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     collectCardAndHighlight(msg.card, msg.userId);
   }
   if (msg.deleteHighlight) {
-    deleteHighlight(msg.url, msg.id, msg.thenDeletecard || null);
+    deleteHighlight(msg.url, msg.id, msg.thenDeletecard);
   }
   if (msg.deleteCard) {
     deleteCard(msg.url, msg.card);
@@ -160,14 +171,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.refreshHighlights) {
     // sending to tabs
     console.log('refresh highlights, sender: \n----- ', msg.sender);
-    SendOutRefresh(msg.url, msg.refreshOrder || false, msg.retry || false);
+    SendOutRefresh(msg.url, msg.refreshOrder || false, msg.sender, msg.retry || false);
   }
   // if (msg.orderRefreshed) {
   //   // sending to sidebar
   //   chrome.runtime.sendMessage({ orderRefreshed: true });
   // }
   if (msg.focusMainWinHighlight) {
-    sendMessageToActiveTab({ focusMainWinHighlight: true, highlightId: msg.highlightId });
+    sendMessageToAllTabs({ focusMainWinHighlight: true, highlightId: msg.highlightId });
   }
   if (msg.updateActiveTab) updateActiveTab();
 });
@@ -192,7 +203,7 @@ const debouncedCloudSync = debounce(async () => {
   console.log('    debounced cloud sync called, syncStatus', syncStatus);
   // console.log(new Date().getTime());
   cloudSync();
-}, 5000);
+}, 50000);
 function checkJwt() {
   function getJwt() {
     return new Promise(resolve => {
@@ -293,18 +304,6 @@ function checkUserCollectionChanged(oldCollection, newCollection) {
   }
 }
 
-// sending message to sidebar and popup, just use chrome.runtime.sendmessage
-function SendOutRefresh(url = null, refreshOrder = false, retry = false) {
-  chrome.storage.local.get(['lastActiveTabUrl'], function(items) {
-    sendMessageToActiveTab({
-      contentRefreshHighlights: true,
-      url: url || items.lastActiveTabUrl,
-      refreshOrder: refreshOrder,
-      retry: retry,
-    });
-  });
-}
-
 function checkIfHighlightsExist(url, callback) {
   chrome.storage.local.get(['websites', 'user_collection'], function(items) {
     let websites = items.websites;
@@ -384,7 +383,7 @@ function updateActiveTab(refresh) {
         chrome.runtime.sendMessage({ activeTabChanged: true });
       }
       // this is needed for single page applications which don't reload on url change
-      if (refresh) SendOutRefresh(null, true);
+      if (refresh) SendOutRefresh(null, 'updateActiveTab', true);
     });
   });
 }
@@ -398,6 +397,7 @@ chrome.windows.onFocusChanged.addListener(function(windowId) {
   // console.log('    windowId', windowId);
   if (windowId !== -1) {
     sendMessageToActiveTab({ resizeSidebar: true });
+    updateActiveTab();
 
     chrome.windows.get(windowId, { populate: true }, function(window) {
       // console.log(window);
@@ -413,10 +413,9 @@ chrome.windows.onFocusChanged.addListener(function(windowId) {
           !window.tabs[0].url.startsWith('moz-extension') &&
           window.tabs[0].url !== items.lastActiveTabUrl
         ) {
-          updateActiveTab();
           checkIfHighlightsExist(window.tabs[0].url, () => {
             console.log('refresh highlights, sender: \n\n----- windows.onFocusChanged Listener');
-            SendOutRefresh(false, true);
+            SendOutRefresh(false, 'windows.onFocusChanged', true);
           });
         }
       });
@@ -437,7 +436,7 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
         updateActiveTab(true);
         checkIfHighlightsExist(changeInfo.url, () => {
           console.log('refresh highlights, sender: \n\n----- tabs.onUpdated Listener');
-          SendOutRefresh(false, true);
+          SendOutRefresh(false, 'tabs.onUpdated', true);
         });
       }
     });
@@ -477,7 +476,7 @@ function makeFlashcard() {
   // might need to check if user collection valid as well
   const jwtValid = checkJwt();
   if (jwtValid) {
-    sendMessageToActiveTab({ getHighlight: true, makeCard: true });
+    sendMessageToAllTabs({ getHighlight: true, makeCard: true });
   } else alert('Please sign in');
 }
 // function makeHighlight() {

@@ -1,6 +1,6 @@
 const $ = require('jquery');
 
-const highlight = function(selString, container, selection, color, highlightId, callback) {
+const highlight = function(selectionString, container, selection, color, highlightId, callback) {
   const DELIMITERS = {
     start: '~|:;',
     end: ';:~|',
@@ -10,15 +10,12 @@ const highlight = function(selString, container, selection, color, highlightId, 
   let focus = null;
   let anchorOffset = 0;
   let focusOffset = 0;
-  let selectionString = '';
-  let selectionLength = 0;
   let startFound = false;
   let charsHighlighted = 0;
-  let alreadyHighlighted = true;
+  let alreadyHighlighted = false;
   // console.log('highlight called');
   // console.log(selString, container, selection, color, highlightId);
-  selectionString = selString;
-  selectionLength = selectionString.length;
+  const selectionLength = selectionString.length;
 
   container = $(container);
   anchor = $(selection.anchorNode);
@@ -64,8 +61,8 @@ const highlight = function(selString, container, selection, color, highlightId, 
           // If one of the textElement is not wrapped in a .highlighter--highlighted span,
           // the selection is not already highlighted
           var parent = element.parentElement;
-          if (parent.nodeName !== 'SPAN' || parent.className !== HIGHLIGHT_CLASS)
-            alreadyHighlighted = false;
+          if (parent.nodeName === 'SPAN' && parent.className === HIGHLIGHT_CLASS)
+            alreadyHighlighted = true;
           // Go over all characters to see if they match the selection.
           // This is done because the selection text and node text contents differ.
           for (var i = 0; i < nodeValueLength; i++) {
@@ -100,7 +97,7 @@ const highlight = function(selString, container, selection, color, highlightId, 
   function getReplacements(color, highlightId) {
     // console.log('get replacements. id', highlightId);
     return {
-      // removed style="background-color: ' + color + ';
+      // removed style="background-color: ' + color + '; in favor of using the highlihght class
       // id needs to append some letters, hence the 'h-id-'
       start: `<span id="${highlightId}" class="${HIGHLIGHT_CLASS}">`,
       end: '</span>',
@@ -143,9 +140,24 @@ const highlight = function(selString, container, selection, color, highlightId, 
     sanitizeRe = new RegExp(escapeRegex(replacements.start + replacements.end), 'g');
     parent.html(content.replace(sanitizeRe, ''));
   }
-
+  // sometimes ID was being added, but highlight class was not being added
+  function recheck() {
+    $('[id^=h-id]').each(function() {
+      const el = $(this);
+      el.find('[id^=h-id]').hasClass(HIGHLIGHT_CLASS);
+      console.log(
+        'selectionString.includes(el.text), !el.hasClass(HIGHLIGHT_CLASS),',
+        selectionString.includes(el.text()),
+        !el.find('[id^=h-id]').hasClass(HIGHLIGHT_CLASS)
+      );
+      if (selectionString.includes(el.text()) && !el.find('[id^=h-id]').hasClass(HIGHLIGHT_CLASS))
+        el.addClass(HIGHLIGHT_CLASS);
+      el.attr('style', "background-color: ''");
+    });
+  }
   // Step 4:
   if (selection.removeAllRanges) selection.removeAllRanges();
+  recheck();
   if (callback) callback();
   return true; // No errors. 'undefined' is returned by default if any error occurs during this method's execution, like if 'content.replace' fails by 'content' being 'undefined'
 };

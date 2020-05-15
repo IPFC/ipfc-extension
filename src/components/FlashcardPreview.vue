@@ -110,7 +110,7 @@ export default {
   cursor: pointer;
 }
 .card-content-show-back {
-  padding-top: 10px;
+  padding: 7px 0;
   overflow-y: auto;
   position: relative;
   height: 100%;
