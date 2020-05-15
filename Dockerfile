@@ -2,17 +2,14 @@
 FROM node:12.2.0-alpine
 
 # set working directory
-WORKDIR /src
+WORKDIR /app
 
 # add `/app/node_modules/.bin` to $PATH
-ENV PATH /src/node_modules/.bin:$PATH
+ENV PATH /app/node_modules/.bin:$PATH
 
 # install and cache app dependencies
-COPY package.json /src/package.json
+COPY package.json /app/package.json
 RUN npm install
 #build
-RUN npm run build
-RUN npm run build-zip
-# #make zip
-# CMD ["npm", "run", "build-zip"]
+CMD ["npm", "run", "build"]
 
