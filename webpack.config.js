@@ -11,7 +11,7 @@ const config = {
   // in response to unsafe eval error https://stackoverflow.com/questions/48047150/refused-to-evaluate-a-string-as-javascript-because-unsafe-eval-is-not-an-allow
   devtool: 'cheap-module-source-map',
   mode: process.env.NODE_ENV,
-  context: path.resolve(__dirname, 'src'),
+  context: path.resolve(__dirname) + '/src',
   entry: {
     background: './background.js',
     // 'contentStyles.css': './contentStyles.css',
@@ -24,7 +24,7 @@ const config = {
     'utils/sidebarContentScript': './utils/sidebarContentScript.js',
   },
   output: {
-    path: path.resolve(__dirname, 'dist'),
+    path: path.resolve(__dirname) + '/dist',
     filename: '[name].js',
   },
   resolve: {
@@ -125,7 +125,7 @@ if (config.mode === 'production') {
 if (process.env.HMR === 'true') {
   config.plugins = (config.plugins || []).concat([
     new ExtensionReloader({
-      manifest: path.resolve(__dirname, 'src') + '/manifest.json',
+      manifest: path.resolve(__dirname) + 'src/manifest.json',
     }),
   ]);
 }

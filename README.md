@@ -33,3 +33,13 @@ It also enable Hot Module Reloading, thanks to webpack-extension-reloader plugin
 `npm run build-zip`
 Build a zip file following this format <name>-v<version>.zip, by reading name and version from manifest.json file. Zip file is located in dist-zip folder.
 this will zip the build dist folder, so make sure you run `npm run build` first
+
+### build from docker
+
+`docker pull jewcub/ipfc-extension`
+`docker run -d jewcub/ipfc-extension`
+to export the generated files back out:
+`docker ps`
+find the image ID
+`docker export <ID> > ipfc-extension-export.tar`
+the project will
