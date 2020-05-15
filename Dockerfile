@@ -12,7 +12,7 @@ COPY package.json /app/package.json
 RUN npm install
 #build
 RUN npm run build
-RUN npm run build-zip
-#make zip
-CMD ["npm", "run", "build-zip"]
+# RUN npm run build-zip
+# #make zip
+# CMD ["npm", "run", "build-zip"]
 
