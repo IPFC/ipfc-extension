@@ -14,13 +14,16 @@ const combineMineAndOthersWebsites = function(websites, othersWebsites) {
       else if (url === oUrl) {
         const combinedWebsite = {};
         combinedWebsite.deleted = [];
-        if (!isEmpty(oWebsite.deleted) || !isEmpty(website.deleted)) {
-          if (isEmpty(oWebsite.deleted)) combinedWebsite.deleted = oWebsite.deleted;
-          else if (isEmpty(website.deleted)) combinedWebsite.deleted = website.deleted;
-          else
-            for (const entry of website.deleted)
-              if (!combinedWebsite.deleted.includes(entry)) combinedWebsite.deleted.push(entry);
+        if (isEmpty(website.deleted)) website.deleted = [];
+        if (isEmpty(oWebsite.deleted)) oWebsite.deleted = [];
+        const mergedDeletedRaw = website.deleted.concat(
+          oWebsite.deleted.filter(entry => !website.deleted.includes(entry))
+        );
+        const mergedDeleted = [];
+        for (const entry of mergedDeletedRaw) {
+          if (!mergedDeleted.includes(entry)) mergedDeleted.push(entry);
         }
+        combinedWebsite.deleted = mergedDeleted;
         // console.log(oWebsite.cards, website.cards);
         if (!isEmpty(oWebsite.cards) || !isEmpty(website.cards)) {
           if (isEmpty(oWebsite.cards)) combinedWebsite.cards = website.cards;
@@ -127,7 +130,7 @@ const combineMineAndOthersWebsites = function(websites, othersWebsites) {
 //   return cards;
 // };
 const filterOutCardCopies = function(rawCards, userId) {
-  console.log('rawCards', rawCards);
+  // console.log('rawCards', rawCards);
   const myCards = [];
   for (const rawCard of rawCards) {
     if (rawCard.user_id === userId) {
@@ -154,7 +157,7 @@ const filterOutCardCopies = function(rawCards, userId) {
       if (count === 0) cards.push(rawCard);
     }
   }
-  console.log('cards', cards);
+  // console.log('cards', cards);
 
   return cards;
 };

@@ -33,7 +33,7 @@ chrome.runtime.onInstalled.addListener(function() {
   });
 });
 
-chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.login) {
     login(msg.username, msg.password);
   }
@@ -41,7 +41,9 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     signup(msg.username, msg.password, msg.pinataApi, msg.pinataSecret);
   }
   if (msg.cloudSync) {
-    cloudSync(true);
+    chrome.storage.sync.get(['serverUrl'], items => {
+      cloudSync(items.serverUrl, true);
+    });
   }
   if (msg.debouncedCloudSync) {
     debouncedCloudSync();
@@ -93,43 +95,54 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
   if (msg.highlightClicked) {
     // console.log('highlight clicked msg', msg);
-    chrome.storage.local.get(['websites', 'mineAndOthersWebsites', 'user_collection'], items => {
-      let highlight;
-      try {
-        highlight = items.mineAndOthersWebsites[msg.highlightUrl].highlights[msg.highlightId];
-      } catch {
+    chrome.storage.local.get(
+      ['websites', 'mineAndOthersWebsites', 'user_collection', 'lastSyncsUserCollection'],
+      items => {
+        console.log(items.user_collection, items.lastSyncsUserCollection);
+        let highlight;
         try {
-          highlight = items.websites[msg.highlightUrl].highlights[msg.highlightId];
+          highlight = items.mineAndOthersWebsites[msg.highlightUrl].highlights[msg.highlightId];
         } catch {
-          console.log('highlight not found');
-          return null;
+          try {
+            highlight = items.websites[msg.highlightUrl].highlights[msg.highlightId];
+          } catch {
+            console.log('highlight not found');
+          }
         }
-      }
-      // console.log('sending response, highlight', highlight);
-      sendResponse({ highlight: highlight, userId: items.user_collection.user_id });
-      let associatedCards;
-      try {
-        associatedCards = items.mineAndOthersWebsites[msg.highlightUrl].cards;
-      } catch {
+        console.log(
+          'sending response, highlight, userId',
+          highlight,
+          items.user_collection.user_id
+        );
+        sendMessageToActiveTab({
+          highlightClickedResponse: true,
+          highlight: highlight,
+          userId: items.user_collection.user_id,
+        });
+        let associatedCards;
         try {
-          associatedCards = items.websites[msg.highlightUrl].cards;
+          associatedCards = items.mineAndOthersWebsites[msg.highlightUrl].cards;
         } catch {
-          console.log('no cards found');
-          return null;
+          try {
+            associatedCards = items.websites[msg.highlightUrl].cards;
+          } catch {
+            console.log('no cards found');
+            return null;
+          }
         }
-      }
-      for (const card of associatedCards) {
-        if (card.highlight_id === msg.highlightId) {
-          // will this message reach sidebar in both chrome and firefox?
-          console.log('sidebarScrollToCard, card, msg', card, msg);
-          chrome.runtime.sendMessage({ sidebarScrollToCard: true, cardId: card.card_id });
+        for (const card of associatedCards) {
+          if (card.highlight_id === msg.highlightId) {
+            // will reach sidebar in both chrome and firefox
+            // console.log('sidebarScrollToCard, card, msg', card, msg);
+            chrome.runtime.sendMessage({ sidebarScrollToCard: true, cardId: card.card_id });
+          }
         }
+        // if couldn't find the card ID, might be because the highlight we clicked doesn't have a card, but a clone of that highlight does
+        // therefore we should check for clones of the highlight and see if those have associated cards
+        // ...
+        // chrome.runtime.sendMessage({ sidebarScrollToCard: true, cardId: card.card_id });
       }
-      // if couldn't find the card ID, might be because the highlight we clicked doesn't have a card, but a clone of that highlight does
-      // therefore we should check for clones of the highlight and see if those have associated cards
-      // ...
-      // chrome.runtime.sendMessage({ sidebarScrollToCard: true, cardId: card.card_id });
-    });
+    );
   }
   if (msg.collectCardAndHighlight) {
     collectCardAndHighlight(msg.card, msg.userId);
@@ -178,7 +191,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   //   chrome.runtime.sendMessage({ orderRefreshed: true });
   // }
   if (msg.focusMainWinHighlight) {
-    sendMessageToAllTabs({ focusMainWinHighlight: true, highlightId: msg.highlightId });
+    sendMessageToActiveTab({ contentFocusMainWinHighlight: true, highlightId: msg.highlightId });
   }
   if (msg.updateActiveTab) updateActiveTab();
 });
@@ -202,7 +215,9 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 const debouncedCloudSync = debounce(async () => {
   console.log('    debounced cloud sync called, syncStatus', syncStatus);
   // console.log(new Date().getTime());
-  cloudSync();
+  chrome.storage.sync.get(['serverUrl'], items => {
+    cloudSync(items.serverUrl, false);
+  });
 }, 50000);
 function checkJwt() {
   function getJwt() {
@@ -308,7 +323,7 @@ function checkIfHighlightsExist(url, callback) {
   chrome.storage.local.get(['websites', 'user_collection'], function(items) {
     let websites = items.websites;
     const userCollection = items.user_collection;
-    if (!userCollection) return null;
+    if (isEmpty(userCollection)) return null;
     if (!websites) websites = {};
     if (!websites[url]) {
       websites[url] = {};
@@ -476,7 +491,7 @@ function makeFlashcard() {
   // might need to check if user collection valid as well
   const jwtValid = checkJwt();
   if (jwtValid) {
-    sendMessageToAllTabs({ getHighlight: true, makeCard: true });
+    sendMessageToActiveTab({ getHighlight: true, makeCard: true });
   } else alert('Please sign in');
 }
 // function makeHighlight() {

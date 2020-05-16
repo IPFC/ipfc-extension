@@ -7,21 +7,21 @@
   background-color: rgba(248, 103, 13, 0.5);
 }
 #left-context-ul {
+  border-radius: 10px;
   list-style-image: none;
   list-style-type: none;
   z-index: 9999999999;
-  background-color: #f6f6f6;
+  background-color: #2a2e2e;
   padding: 0;
   margin: 0;
 }
 .left-context-li {
-  padding: 5px;
+  padding: 10px;
   margin: 0;
-  border-width: 1px;
-  border-style: solid;
-  border-color: black;
+  color: white;
+  border-radius: 5px;
 }
 .left-context-li:hover {
-  background-color: #acacac;
+  background-color: #171818;
   cursor: pointer;
 }

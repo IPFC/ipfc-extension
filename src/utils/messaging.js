@@ -1,3 +1,4 @@
+import { cleanedUrl } from './dataProcessing';
 const sendMessageToAllTabs = function(message) {
   chrome.tabs.query({}, function(tabs) {
     for (let i = 0; i < tabs.length; ++i) {
@@ -23,10 +24,11 @@ const sendMessageToAllTabs = function(message) {
 
 const sendMessageToActiveTab = function(message) {
   chrome.storage.local.get(['lastActiveTabUrl'], items => {
+    // console.log('sendMessageToActiveTab', items.lastActiveTabUrl);
     chrome.tabs.query({}, function(tabs) {
       for (let i = 0; i < tabs.length; ++i) {
         chrome.tabs.get(tabs[i].id, function(tab) {
-          if (tab.url === items.lastActiveTabUrl) {
+          if (cleanedUrl(tab.url) === items.lastActiveTabUrl) {
             // console.log(tab.url);
             chrome.tabs.sendMessage(tabs[i].id, message, function() {
               if (chrome.runtime.lastError) {
@@ -53,7 +55,7 @@ const sendMessageToActiveTab = function(message) {
 
 // sending message to sidebar and popup, just use chrome.runtime.sendmessage
 function SendOutRefresh(url = null, refreshOrder = false, sender = null, retry = false) {
-  sendMessageToAllTabs({
+  sendMessageToActiveTab({
     contentRefreshHighlights: true,
     refreshOrder: refreshOrder,
     sender: sender,

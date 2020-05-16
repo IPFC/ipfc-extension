@@ -144,15 +144,15 @@ const highlight = function(selectionString, container, selection, color, highlig
   function recheck() {
     $('[id^=h-id]').each(function() {
       const el = $(this);
-      el.find('[id^=h-id]').hasClass(HIGHLIGHT_CLASS);
-      console.log(
-        'selectionString.includes(el.text), !el.hasClass(HIGHLIGHT_CLASS),',
-        selectionString.includes(el.text()),
-        !el.find('[id^=h-id]').hasClass(HIGHLIGHT_CLASS)
-      );
-      if (selectionString.includes(el.text()) && !el.find('[id^=h-id]').hasClass(HIGHLIGHT_CLASS))
+      // console.log(
+      //   'selectionString.includes(el.text), !el.hasClass(HIGHLIGHT_CLASS),',
+      //   selectionString.includes(el.text()),
+      //   !el.find('[id^=h-id]').hasClass(HIGHLIGHT_CLASS)
+      // );
+      if (selectionString.includes(el.text()) && !el.find('[id^=h-id]').hasClass(HIGHLIGHT_CLASS)) {
         el.addClass(HIGHLIGHT_CLASS);
-      el.attr('style', "background-color: ''");
+        el.attr('style', 'background-color: ""');
+      } else el.attr('style', 'background-color: ""');
     });
   }
   // Step 4:

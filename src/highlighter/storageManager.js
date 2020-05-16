@@ -85,7 +85,7 @@ const storeHighlightsOrder = function(url, callback) {
           items.user_collection.user_id,
           websites
         );
-        console.log('sortedCArds', sortedCards);
+        // console.log('sortedCards', sortedCards);
         websites[url].orderedCards = sortedCards.orderedCards;
         websites[url].orderlessCards = sortedCards.orderlessCards;
         if (items.highlightsViewMode === 'mine') {

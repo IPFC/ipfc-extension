@@ -9,7 +9,7 @@
     <b-container
       v-if="loaded"
       id="sidebar-content-body"
-      class="sidebar-content-body position-absolute w-100 m-0 pt-1 pb-0 px-0 bg-light"
+      class="scroller position-absolute w-100 m-0 pt-1 pb-0 px-0 bg-light"
     >
       <b-row
         v-if="loadingOthers && selectedTab === 'page-all'"
@@ -180,7 +180,7 @@ export default {
     },
   },
   created() {
-    // firefox can't set popup left and top, so need to call this immediately
+    // firefox can't set popup left and top, so need to call this immediately. In firefox, sidebar is part of the background
     sendMessageToAllTabs({ resizeSidebar: true });
     const that = this;
     chrome.windows.getCurrent(function(win) {
@@ -736,6 +736,10 @@ export default {
   margin: 10px 5px;
   font-size: 0.9rem;
 }
+.scroller {
+  scrollbar-color: rgba(162, 162, 162, 0.5) transparent; /* thumb and track color */
+  scrollbar-width: thin;
+}
 .scroller::-webkit-scrollbar {
   width: 5px;
   padding-right: 5px;
@@ -752,22 +756,16 @@ export default {
   cursor: pointer;
   color: black;
 }
-.sidebar-content-body {
+#sidebar-content-body {
   overflow-x: hidden;
   overflow-y: auto;
   top: 87px;
   left: 0;
   height: calc(100% - 87px);
 }
-.sidebar-content-body::-webkit-scrollbar {
-  width: 0.4em;
-  background-color: #f0f0f0;
-}
-.sidebar-content-bodyn::-webkit-scrollbar-thumb {
-  background-color: rgba(162, 162, 162, 0.5);
-}
+
 .deck-col {
-  max-width: 600px;
+  max-width: 100%;
 }
 
 .underline {

@@ -9,9 +9,15 @@ const syncStatus = {
   syncingBlockedBySyncing: false,
 };
 
-const cloudSync = async function(skipEqualityCheck) {
-  console.log('    asyncCloudSync called, syncing status', syncStatus.syncing, timestamp());
-  console.log('window.location.href', window.location.href);
+const cloudSync = async function(serverUrl, skipEqualityCheck) {
+  console.log(
+    '    asyncCloudSync called, syncing status, serverUrl, skipEqualityCheck',
+    syncStatus.syncing,
+    serverUrl,
+    skipEqualityCheck,
+    timestamp()
+  );
+  // console.log('window.location.href', window.location.href);
 
   if (syncStatus.syncing) {
     console.log('    syncing blocked by concurrent sync', timestamp());
@@ -21,10 +27,6 @@ const cloudSync = async function(skipEqualityCheck) {
   syncStatus.syncing = true;
   sendOutMessage({ syncing: true, value: true });
   try {
-    let serverUrl;
-    chrome.storage.sync.get(['serverUrl'], items => {
-      serverUrl = items.serverUrl;
-    });
     const storage = await getStorage();
     // console.log('    getStorage results', storage);
     const jwt = storage.jwt;
@@ -107,7 +109,7 @@ const cloudSync = async function(skipEqualityCheck) {
     if (!saved) {
       console.log('    collection changed while syncing, abort and restart sync', timestamp());
       syncStatus.syncing = false;
-      cloudSync(true);
+      cloudSync(serverUrl, true);
       return null;
     }
 
@@ -119,7 +121,7 @@ const cloudSync = async function(skipEqualityCheck) {
     );
     if (syncStatus.syncingBlockedBySyncing) {
       syncStatus.syncing = false;
-      cloudSync();
+      cloudSync(serverUrl);
       return null;
     } else {
       // success!
@@ -174,6 +176,7 @@ async function callAPI(data) {
   if (data.data) {
     options.data = data.data;
   }
+  console.log('sending axios, options', options);
   await axios(options)
     .then(response => {
       result = response.data;
@@ -187,6 +190,7 @@ async function callAPI(data) {
     });
   return result;
 }
+
 function getStorage() {
   // using chrome.storage inside an async, wrap it in a promise (remember to add 'new' before promise!)
   // https://stackoverflow.com/questions/59440008/how-to-wait-for-asynchronous-chrome-storage-local-get-to-finish-before-continu
@@ -370,7 +374,7 @@ async function syncHighlightUrls(
               timestamp()
             );
             syncStatus.syncing = false;
-            cloudSync(true);
+            cloudSync(serverUrl, true);
             return null;
           } else {
             localUserCollection.highlight_urls = serverCollection.highlight_urls;
@@ -414,8 +418,17 @@ async function syncUserCollection(
   serverCollection,
   initialUserCollection
 ) {
+  // console.log('localUserCollection, serverCollection', localUserCollection, serverCollection);
   // sync settings, schedule, all_card_tags, //later extension settings. any one with 'edited'
   for (const section in localUserCollection) {
+    if (section === 'user_id') {
+      if (isEmpty(localUserCollection.user_id) && !isEmpty(serverCollection.user_id)) {
+        localUserCollection.user_id = serverCollection.user_id;
+        chrome.storage.local.set({
+          user_collection: localUserCollection,
+        });
+      }
+    }
     if (section === 'webapp_settings' || section === 'schedule' || section === 'all_card_tags') {
       if (isEmpty(serverCollection[section]))
         serverCollection[section] = {
@@ -442,16 +455,15 @@ async function syncUserCollection(
                 timestamp()
               );
               syncStatus.syncing = false;
-              cloudSync(true);
+              cloudSync(serverUrl, true);
               return null;
             } else {
-              localUserCollection.highlight_urls = serverCollection.highlight_urls;
+              localUserCollection[section] = serverCollection[section];
               chrome.storage.local.set({
                 user_collection: localUserCollection,
               });
             }
           });
-          localUserCollection[section] = serverCollection[section];
         } else if (serverCollection[section].edited < localUserCollection[section].edited) {
           console.log('putting section: ', section);
           const putSectionData = {

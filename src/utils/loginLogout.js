@@ -11,11 +11,11 @@ const callAPI = function(url, headers, method, data = null, callback = null) {
   if (data !== null) {
     options.data = data;
   }
-  console.log('options', options);
+  // console.log('options', options);
   axios(options)
     .then(response => {
       data = response.data;
-      console.log('APICall data', data);
+      // console.log('APICall data', data);
       if (callback !== null) {
         callback(data);
         return data;
@@ -82,7 +82,7 @@ const signup = function(email, password) {
       .post(pinataSignupEndpoint, params)
       .then(response => {
         const data = response.data;
-        console.log('APICall data', data);
+        // console.log('APICall data', data);
         const signUpData = {
           email: email,
           password: password,

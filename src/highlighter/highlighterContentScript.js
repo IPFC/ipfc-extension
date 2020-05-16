@@ -33,8 +33,8 @@ chrome.runtime.onMessage.addListener(function(msg) {
     console.log('refresh highlights, sender', msg.sender);
     refreshHighlights(msg.url, msg.refreshOrder, msg.retry);
   }
-  if (msg.focusMainWinHighlight) {
-    console.log('focusMainWinHighlight msg', msg);
+  if (msg.contentFocusMainWinHighlight) {
+    // console.log('focusMainWinHighlight msg', msg);
     focusHighlight(msg.highlightId);
   }
 });
@@ -43,17 +43,14 @@ function updateActiveTab() {
   chrome.runtime.sendMessage({ updateActiveTab: true });
 }
 function focusHighlight(highlightId) {
-  try {
-    $('html, body').animate(
-      {
-        scrollTop: $('#' + highlightId).offset().top - 200,
-      },
-      400
-    );
-  } catch (error) {
-    console.log('focus highlight error', error);
+  const highlightSpan = document.getElementById(highlightId);
+  if (highlightSpan) {
+    try {
+      highlightSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (error) {
+      console.log('focus highlight error', error);
+    }
   }
-  // console.log('scrollto highlight id', highlightId);
 }
 const refreshHighlights = throttle(function(url, refreshOrder, retry = false) {
   chrome.storage.local.get(
@@ -86,7 +83,7 @@ const refreshHighlights = throttle(function(url, refreshOrder, retry = false) {
         return null;
       }
       if (!url) url = cleanedUrl(window.location.href);
-      console.log('refreshHighlights , url, refreshOrder, retry', url, refreshOrder, retry);
+      // console.log('refreshHighlights , url, refreshOrder, retry', url, refreshOrder, retry);
 
       let websites;
       if (items.highlightsViewMode === 'mineAndOthers') websites = items.mineAndOthersWebsites;
@@ -241,10 +238,8 @@ function setupContextMenu() {
   let clickedHighlightId;
   let userId;
   var leftContextMenuHtml = `<ul id="left-context-ul">
-    <li class="left-context-li" id="delete-highlight">Delete highlight</li>
     <li class="left-context-li" id="delete-highlight-and-card">Delete highlight and card</li>
     <li class="left-context-li" id="add-card-to-highlight">Add a new card to this highlight</li>
-    <li class="left-context-li" id="collect-highlight">Collect highlight</li>
     <li class="left-context-li" id="collect-highlight-and-card">Collect highlight and card</li>
   </ul>`;
   if ($('#left-context-menu').length === 0) {
@@ -274,44 +269,54 @@ function setupContextMenu() {
       const offsetHeight = target[0].offsetHeight;
       const offsetLeft = target.offset().left;
       // console.log('offsetLeft, offsetHeight, offsetTop', offsetLeft, offsetHeight, offsetTop);
-      chrome.runtime.sendMessage(
-        {
-          highlightClicked: true,
-          highlightId: clickedHighlightId,
-          highlightUrl: cleanedUrl(window.location.href),
-        },
-        function(response) {
-          // console.log(response, 'response');
-          userId = response.userId;
+
+      const highlightClickedResponse = function(msg) {
+        if (msg.highlightClickedResponse) {
+          console.log('msg', msg);
+          userId = msg.userId;
           $menu.css({
             position: 'absolute',
             top: offsetTop - offsetHeight - 55,
             left: offsetLeft,
           });
           $menu.show();
-          togglePopupLeftContextMenu(response.highlight);
+          togglePopupLeftContextMenu(msg.highlight);
+          chrome.runtime.onMessage.removeListener(highlightClickedResponse);
         }
-      );
+      };
+      chrome.runtime.sendMessage({
+        highlightClicked: true,
+        highlightId: clickedHighlightId,
+        highlightUrl: cleanedUrl(window.location.href),
+      });
+      chrome.runtime.onMessage.addListener(highlightClickedResponse);
+
+      // chrome.runtime.sendMessage({
+      //   highlightClicked: true,
+      //   highlightId: clickedHighlightId,
+      //   highlightUrl: cleanedUrl(window.location.href),
+      // });
     }
   };
 
   const togglePopupLeftContextMenu = function(highlight) {
     // console.log('highlight, userId', highlight, userId);
     const $menu = $('#left-context-menu');
-    const $deleteHighlight = $('#delete-highlight');
+    // const $deleteHighlight = $('#delete-highlight');
     const $deleteHighlightAndCard = $('#delete-highlight-and-card');
     // const $addCardToHighlight = $('add-card-to-highlight');
-    const $collectHighlight = $('#collect-highlight');
+    // const $collectHighlight = $('#collect-highlight');
     const $collectHighlightAndCard = $('#collect-highlight-and-card');
+    console.log('highlight.user_id, userId', highlight.user_id, userId);
     if (highlight.user_id === userId) {
-      $collectHighlight.hide();
+      // $collectHighlight.hide();
       $collectHighlightAndCard.hide();
-      $deleteHighlight.show();
+      // $deleteHighlight.show();
       $deleteHighlightAndCard.show();
     } else {
-      $deleteHighlight.hide();
+      // $deleteHighlight.hide();
       $deleteHighlightAndCard.hide();
-      $collectHighlight.show();
+      // $collectHighlight.show();
       $collectHighlightAndCard.show();
     }
     const clickCallback = function(e) {
@@ -320,15 +325,15 @@ function setupContextMenu() {
         $(document).off('click', clickCallback);
         $(document).on('click', repositionAndShowLeftContextMenu);
       }
-      if ($(e.target).is('#delete-highlight')) {
-        chrome.runtime.sendMessage({
-          deleteHighlight: true,
-          url: cleanedUrl(window.location.href),
-          id: clickedHighlightId,
-          thenDeleteCard: false,
-        });
-        afterMenuItemClick();
-      }
+      // if ($(e.target).is('#delete-highlight')) {
+      //   chrome.runtime.sendMessage({
+      //     deleteHighlight: true,
+      //     url: cleanedUrl(window.location.href),
+      //     id: clickedHighlightId,
+      //     thenDeleteCard: false,
+      //   });
+      //   afterMenuItemClick();
+      // }
       if ($(e.target).is('#delete-highlight-and-card')) {
         chrome.runtime.sendMessage({
           deleteHighlight: true,
@@ -347,15 +352,15 @@ function setupContextMenu() {
         });
         afterMenuItemClick();
       }
-      if ($(e.target).is('#collect-highlight')) {
-        chrome.runtime.sendMessage({
-          collectHighlight: true,
-          highlight: highlight,
-          url: cleanedUrl(window.location.href),
-          userId: userId,
-        });
-        afterMenuItemClick();
-      }
+      // if ($(e.target).is('#collect-highlight')) {
+      //   chrome.runtime.sendMessage({
+      //     collectHighlight: true,
+      //     highlight: highlight,
+      //     url: cleanedUrl(window.location.href),
+      //     userId: userId,
+      //   });
+      //   afterMenuItemClick();
+      // }
       if ($(e.target).is('#collect-highlight-and-card')) {
         chrome.runtime.sendMessage({
           collectHighlight: true,

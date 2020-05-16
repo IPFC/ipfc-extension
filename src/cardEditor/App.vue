@@ -687,6 +687,10 @@ export default {
   overflow-y: auto;
   background-color: #f6f6f6;
 }
+.scroller {
+  scrollbar-color: rgba(162, 162, 162, 0.5) transparent; /* thumb and track color */
+  scrollbar-width: thin;
+}
 .scroller::-webkit-scrollbar {
   width: 8px;
   padding-right: 5px;
