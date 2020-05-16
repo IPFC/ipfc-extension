@@ -37,7 +37,8 @@ this will zip the build dist folder, so make sure you run `npm run build` first
 ## build from docker (currently only for production)
 
 `docker pull jewcub/ipfc-extension`
-`docker run -d jewcub/ipfc-extension`
+
+`docker run -it jewcub/ipfc-extension`
 to export the generated files back out:
 `docker ps`
 find the container ID

@@ -1,4 +1,5 @@
 import defaultCollection from '../assets/defaultCollection.json';
+import { cloudSync } from './cloudSync';
 
 const axios = require('axios');
 
@@ -65,7 +66,7 @@ function getMeta(serverUrl, token) {
       },
       () => {
         chrome.runtime.sendMessage({ loginSuccess: true });
-        chrome.runtime.sendMessage({ cloudSync: true });
+        cloudSync(serverUrl, true);
       }
     );
   };
