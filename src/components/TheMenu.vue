@@ -49,6 +49,7 @@ import {
   // BFormSelectOption,
   // BFormGroup,
 } from 'bootstrap-vue';
+import { combineMineAndOthersWebsites, filterOutCardCopies } from '../utils/dataProcessing';
 // import { createSidebar } from '../utils/sidebarContentScript.js';
 import { isEmpty } from 'lodash';
 const axios = require('axios');
@@ -78,31 +79,36 @@ export default {
   },
   mounted() {
     const that = this;
-    chrome.storage.local.get(['highlightsViewMode', 'jwt'], items => {
+    chrome.storage.local.get(['highlightsViewMode', 'jwt', 'user_collection'], items => {
       that.selectedView = items.highlightsViewMode;
       that.jwt = items.jwt;
+      that.userCollection = items.user_collection;
     });
     chrome.runtime.onMessage.addListener(msg => {
       if (msg.orderRefreshed) {
-        // console.log('orderRefreshed');
-        if (that.selectedView === 'mineAndOthers' && !this.inSidebar) {
-          that.loadpageAll();
-        }
+        chrome.storage.local.get(['highlightsViewMode'], items => {
+          that.selectedView = items.highlightsViewMode;
+          // console.log('orderRefreshed');
+          if (that.selectedView === 'mineAndOthers' && !that.inSidebar) {
+            that.loadpageAll();
+          }
+        });
       }
     });
   },
 
   methods: {
     selectView(view) {
+      const that = this;
       chrome.storage.local.get(['lastActiveTabUrl'], items => {
-        this.selectedView = view;
+        chrome.storage.local.set({ highlightsViewMode: view });
+        that.selectedView = view;
         chrome.runtime.sendMessage({
           refreshHighlights: true,
           refreshOrder: true,
           url: items.lastActiveTabUrl,
           sender: 'selectView',
         });
-        chrome.storage.local.set({ highlightsViewMode: view });
       });
     },
     openSidebarWindow() {
@@ -208,25 +214,33 @@ export default {
       let apiCardCount = 0;
       let localHighlightCount = 0;
       let localCardCount = 0;
-      if (apiWebsite.cards) apiCardCount = apiWebsite.cards.length;
+      if (apiWebsite.cards)
+        apiCardCount = filterOutCardCopies(apiWebsite.cards, this.userCollection.user_id).length;
       if (apiWebsite.highlights) apiHighlightCount = Object.keys(apiWebsite.highlights).length;
-      if (mineAndOthersWebsites)
-        if (mineAndOthersWebsites[url]) {
-          if (mineAndOthersWebsites[url].orderedCards && mineAndOthersWebsites.orderlessCards)
-            localCardCount =
-              mineAndOthersWebsites[url].orderedCards.length +
-              mineAndOthersWebsites.orderlessCards.length;
-          if (mineAndOthersWebsites[url].highlights)
-            localHighlightCount = Object.keys(mineAndOthersWebsites[url].highlights).length;
-        }
+      if (mineAndOthersWebsites[url]) {
+        if (mineAndOthersWebsites[url].orderedCards && mineAndOthersWebsites[url].orderlessCards)
+          localCardCount =
+            mineAndOthersWebsites[url].orderedCards.length +
+            mineAndOthersWebsites[url].orderlessCards.length;
+        if (mineAndOthersWebsites[url].highlights)
+          localHighlightCount = Object.keys(mineAndOthersWebsites[url].highlights).length;
+      }
+      console.log(
+        'apiHighlightCount, localHighlightCount, apiCardCount, localCardCount',
+        apiHighlightCount,
+        localHighlightCount,
+        apiCardCount,
+        localCardCount
+      );
       if (apiHighlightCount !== localHighlightCount || apiCardCount !== localCardCount) {
         mineAndOthersWebsites[url] = apiWebsite;
-        chrome.storage.local.set({ mineAndOthersWebsites: mineAndOthersWebsites });
+        const combinedWebsites = combineMineAndOthersWebsites(websites, mineAndOthersWebsites);
+        chrome.storage.local.set({ mineAndOthersWebsites: combinedWebsites });
         chrome.runtime.sendMessage({
           refreshHighlights: true,
           refreshOrder: true,
           url: url,
-          sender: 'loadPageAll highlights/card count doesnt match',
+          sender: 'loadPageAll, card/highlight count unequal',
         });
       } else this.loadingOthers = false;
     },

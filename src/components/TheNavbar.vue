@@ -100,16 +100,28 @@ export default {
     };
   },
   mounted() {
+    const that = this;
     chrome.runtime.onMessage.addListener(msg => {
       if (msg.syncing) {
         // console.log('msg', msg);
-        if (msg.value) this.syncing = true;
-        if (!msg.value) this.syncing = false;
+        if (msg.value) that.syncing = true;
+        if (!msg.value) that.syncing = false;
       }
       if (msg.syncNotUpToDate) {
         // console.log('msg', msg);
-        if (msg.value) this.syncNotUpToDate = true;
-        if (!msg.value) this.syncNotUpToDate = false;
+        if (msg.value) that.syncNotUpToDate = true;
+        if (!msg.value) that.syncNotUpToDate = false;
+      }
+      if (msg.orderRefreshed) {
+        chrome.storage.local.get(['highlightsViewMode'], items => {
+          const view = items.highlightsViewMode;
+          // console.log('orderRefreshed');
+          if (view === 'mineAndOthers' && that.selectedTab !== 'page-all') {
+            that.selectTab('page-all');
+          } else if (view === 'mine' && that.selectedTab === 'page-all') {
+            that.selectTab('page-mine');
+          }
+        });
       }
     });
   },

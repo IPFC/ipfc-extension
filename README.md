@@ -40,6 +40,7 @@ this will zip the build dist folder, so make sure you run `npm run build` first
 
 `docker run -it jewcub/ipfc-extension`
 to export the generated files back out:
+in a new terminal
 `docker ps`
 find the container ID
 `docker export <ID> > ipfc-extension-export.tar`

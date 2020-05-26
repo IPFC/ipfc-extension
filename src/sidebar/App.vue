@@ -357,13 +357,13 @@ export default {
       const storage = await getStorage();
       console.log('storage', storage);
       if (storage.highlightsViewMode !== 'mineAndOthers') {
-        chrome.storage.local.set({ highlightsViewMode: 'mineAndOthers' });
         chrome.runtime.sendMessage({
           refreshHighlights: true,
           refreshOrder: true,
           url: storage.lastActiveTabUrl,
           sender: 'loadPageAll, set highlights mode',
         });
+        chrome.storage.local.set({ highlightsViewMode: 'mineAndOthers' });
         // console.log('set storage view mode');
         return null;
       }
