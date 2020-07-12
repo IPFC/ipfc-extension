@@ -10,6 +10,8 @@ Current build tested in Linux with Node v12.13.1
 
 Built with boilerplate: [vue-web-extension](https://github.com/Kocal/vue-web-extension)
 
+> For local environment build change the webpack.config to `manifest: path.resolve(__dirname) + '/src/manifest.json',` but for docker export use `src/` with no prefix `/`
+
 to install:
 `$ npm install`
 `$ npm run build`
@@ -46,5 +48,3 @@ in a **new terminal**
 find the container ID
 `$ docker export <ID> > ipfc-extension-export.tar`
 the project will be inside the 'app' folder. The zip will be inside dist-zip
-
-> local env build likes webpack.config `manifest: path.resolve(__dirname) + '/src/manifest.json',` but docker likes src/ with no prefix /
