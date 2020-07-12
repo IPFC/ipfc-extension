@@ -364,7 +364,7 @@ export default {
       this.decks_meta.push(newDeck);
       this.deck = newDeck;
       this.newDeckToPost = deckTitle;
-      console.log('this.newDeckToPost', this.newDeckToPost);
+      // console.log('this.newDeckToPost', this.newDeckToPost);
     },
     loadStorage() {
       const that = this;
@@ -413,7 +413,7 @@ export default {
         card: this.card,
       });
       this.cancelled = true;
-      // window.close();
+      window.close();
     },
     editorShiftEnter() {
       event.preventDefault();
