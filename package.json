@@ -3,6 +3,9 @@
   "version": "1.0.57",
   "description": "Quickly make flashcards and highlights from websites and sync them to multiplatform flashcard apps for review",
   "author": "Jacob Cohen-Rosenthal <xiaokourou@gmail.com>",
+  "repository": {
+    "url": "https://github.com/IPFC/ipfc-extension"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=10"
