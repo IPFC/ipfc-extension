@@ -26,7 +26,6 @@
     }
   },
   "dependencies": {
-    "@babel/compat-data": "^7.10.4",
     "@fortawesome/fontawesome-svg-core": "^1.2.27",
     "@fortawesome/free-solid-svg-icons": "^5.12.1",
     "@fortawesome/vue-fontawesome": "^0.1.9",
@@ -48,6 +47,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.1.2",
+    "@babel/compat-data": "^7.10.4",
     "@babel/plugin-proposal-optional-chaining": "^7.0.0",
     "@babel/preset-env": "^7.1.0",
     "@babel/runtime-corejs3": "^7.4.0",
