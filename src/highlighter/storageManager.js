@@ -805,7 +805,7 @@ const deleteHighlight = function(url, id, thenDeleteCard = true) {
 };
 const deleteCard = function(url, card, thenDeleteHighlight = true) {
   chrome.storage.local.get(['websites', 'user_collection'], items => {
-    // console.log('delete card', url, card, items);
+    console.log('delete card', url, card, items);
     if (!items.user_collection) {
       alert('please log in to IPFC');
       return null;

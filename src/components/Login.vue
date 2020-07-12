@@ -32,44 +32,6 @@
         <b-form-invalid-feedback v-if="input.password" :state="passwordValidation">{{
           passwordValidationErrorMsg
         }}</b-form-invalid-feedback>
-        <!-- <b-form-valid-feedback :state="passwordValidation">Looks Good.</b-form-valid-feedback> -->
-        <!-- 
-        <b-button
-          v-if="showSignUp"
-          id="button-get-pinata"
-          type="submit"
-          variant="primary"
-          @click="OpenPinata()"
-          >Get Pinata</b-button
-        >
-        <br />
-
-        <label v-if="showSignUp" for="feedback-pinata-api">Pinata API key</label>
-        <b-form-input
-          v-if="showSignUp"
-          id="feedback-pinata-api"
-          v-model="input.pinataApi"
-          :state="pinataApiValidation"
-        ></b-form-input>
-        <b-form-invalid-feedback v-if="showSignUp" :state="pinataApiValidation">{{
-          pinataApiValidationErrorMsg
-        }}</b-form-invalid-feedback> -->
-        <!-- <b-form-valid-feedback v-if="showSignUp" :state="pinataApiValidation">Looks Good.</b-form-valid-feedback> -->
-
-        <!-- <label v-if="showSignUp" for="feedback-pinata-secret">Pinata secret API key</label>
-        <b-form-input
-          v-if="showSignUp"
-          id="feedback-pinata-secret"
-          v-model="input.pinataSecret"
-          :state="pinataSecretValidation"
-          type="password"
-        ></b-form-input>
-        <b-form-invalid-feedback v-if="showSignUp" :state="pinataSecretValidation">{{
-          pinataSecretValidationErrorMsg
-        }}</b-form-invalid-feedback>
-        <b-form-valid-feedback v-if="showSignUp" :state="pinataSecretValidation"
-          >Looks Good.</b-form-valid-feedback
-        > -->
         <p v-if="showSignUp" class="mt-1">
           Signing up with IPFC, you will recieve a Pinata.cloud account with 1GB of free storage.
           Check your email for activation.
@@ -141,7 +103,7 @@ export default {
   computed: {
     emailValidation() {
       const email = this.input.email;
-      if (email.length < 4 || email.length > 25) {
+      if (email.length <= 5 || email.length >= 64) {
         return false;
       }
       if (!email.includes('@') || !email.includes('.')) {
@@ -152,8 +114,8 @@ export default {
     },
     emailValidationErrorMsg() {
       const email = this.input.email;
-      if (email.length < 4 || email.length > 25) {
-        return 'Email must be 5-25 characters long';
+      if (email.length <= 5 || email.length >= 64) {
+        return 'Email must be 5-64 characters long';
       }
       if (!email.includes('@') || !email.includes('.')) {
         return 'Invalid email';
@@ -163,7 +125,7 @@ export default {
     },
     passwordValidation() {
       const password = this.input.password;
-      if (password.length < 8 || password.length > 20) {
+      if (password.length < 8 || password.length >= 64) {
         return false;
       } else {
         return true;
@@ -171,7 +133,7 @@ export default {
     },
     passwordValidationErrorMsg() {
       const password = this.input.password;
-      if (password.length < 8 || password.length > 20) {
+      if (password.length < 8 || password.length >= 64) {
         return 'Password must be 8-20 characters long';
       } else {
         return null;

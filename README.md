@@ -39,8 +39,9 @@ this will zip the build dist folder, so make sure you run `$ npm run build` firs
 `$ docker pull jewcub/ipfc-extension`
 
 `$ docker run -it jewcub/ipfc-extension`
-to export the generated files back out:
-in a new terminal
+you should see `Welcome to Node.js v12.16.3.`
+thsn, to export the generated files back out:
+in a **new terminal**
 `$ docker ps`
 find the container ID
 `$ docker export <ID> > ipfc-extension-export.tar`

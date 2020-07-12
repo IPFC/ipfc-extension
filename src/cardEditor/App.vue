@@ -337,8 +337,8 @@ export default {
         this.setDeck(this.formatTitle(cardData.highlight_url));
       } else this.setDeck(this.formatTitle(cardData.highlight_url));
     },
-    setDeck(deckTitle) {
-      console.log('this.decks_meta', this.decks_meta);
+    setDeck(deckTitleRaw) {
+      const deckTitle = deckTitleRaw.trim();
       for (const deck of this.decks_meta) {
         if (deck.title === deckTitle) {
           this.deck = deck;
@@ -413,7 +413,7 @@ export default {
         card: this.card,
       });
       this.cancelled = true;
-      window.close();
+      // window.close();
     },
     editorShiftEnter() {
       event.preventDefault();
@@ -657,6 +657,7 @@ export default {
       }
     },
     formatTitle(title) {
+      if (!title) return '--No deck selected--';
       let frontTrunc;
       if (!title.includes('http://') && !title.includes('https://')) frontTrunc = title;
       else {
