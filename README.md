@@ -28,7 +28,7 @@ Watch for modifications then run npm run build.
 Watch for modifications then run npm run build:dev.
 It also enable Hot Module Reloading, thanks to webpack-extension-reloader plugin.
 
-⚠️ Keep in mind that HMR only works for your background entry.
+> Keep in mind that HMR only works for your background entry.
 
 `$ npm run build-zip`
 Build a zip file with the resulting filename format `<name>-v<version>.zip`, by reading name and version from manifest.json file. Zip file is located in dist-zip folder.
@@ -40,11 +40,11 @@ this will zip the build dist folder, so make sure you run `$ npm run build` firs
 
 `$ docker run -it jewcub/ipfc-extension`
 you should see `Welcome to Node.js v12.16.3.`
-thsn, to export the generated files back out:
+then, to export the generated files back out:
 in a **new terminal**
 `$ docker ps`
 find the container ID
 `$ docker export <ID> > ipfc-extension-export.tar`
 the project will be inside the 'app' folder. The zip will be inside dist-zip
 
-local env build likes webpack.config `manifest: path.resolve(__dirname) + '/src/manifest.json',` but docker likes src/ with no prefix /
+> local env build likes webpack.config `manifest: path.resolve(__dirname) + '/src/manifest.json',` but docker likes src/ with no prefix /
